@@ -38,10 +38,10 @@ if __name__ == "__main__":
 		websocket.run(app, host="0.0.0.0", port=5000)
 	except Exception as inst:
 		emit("error", {
-			"timestamp": ,
+			"timestamp": time.time(),
 			"title": str(type(inst)),
 			"detail": str(e)
-		}
+		})
 		pass
 
 # DEPREICATED
