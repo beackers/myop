@@ -22,6 +22,7 @@ def newMsg(data):
 			"username": data.get("username", "unknown"),
 			"message": data.get("msg", "<blank>")
 		}
+		dataType = "message"
 	except Exception as e:
 		dataToSend = {
 			"timestamp": "SYSTEM",
@@ -29,16 +30,17 @@ def newMsg(data):
 			"message": str(e)
 		}
 		print("Handled exception in newMsg()")
+		dataType = "error"
 
 	finally:
-		emit("message", dataToSend, broadcast=True)
+		emit(dataType, dataToSend, broadcast=True)
 
 if __name__ == "__main__":
 	try:
 		websocket.run(app, host="0.0.0.0", port=5000)
 	except Exception as inst:
 		emit("error", {
-			"timestamp": time.time(),
+			"timestamp": time.asctime(),
 			"title": str(type(inst)),
 			"detail": str(e)
 		})
