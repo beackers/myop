@@ -13,10 +13,16 @@ vice-width, initial-scale=1.0">
 	Body goes here.
 	Don't forget to add in the website URL into the addANav function!!
 -->
+	<h1>MyOp</h1>
+	<ul>
+		<li><a href="/chat">see what's cooking in the chat</a></li>
+		<li><a href="/bulletins">bulletins</a></li>
+		<li><a href="/bulletins">(sysops) set up the operations</a></li>
+	</ul>
 
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
-		addANav("");
+		addANav("/");
 	</script>
 </body>
 </html>
