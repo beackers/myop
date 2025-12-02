@@ -4,19 +4,21 @@ function addANav() {
 
     // change / add websites here!
     const navData = [
-        {
-            label: "important",
-            items: [
-                { label: "home", value: "/" },
-                { label: "beliefs", value: "/beliefs" }
-            ]
-        },
-        {
-            label: "fun stuff",
-            items: [
-                { label: "drawings", value: "/drawings" }
-            ]
-        }
+	{
+		label: "THIS OP",
+		items: [
+			{ label: "home", value: "/" },
+			{ label: "BULLETINS", value: "/bulletins" },
+			{ label: "CHAT", value: "/chat"}
+		]
+	},
+	{
+		label: "admin",
+		items: [
+			{ label: "control", value: "/control" }
+		]
+	}
+	
     ];
 
     const sel = document.createElement("select");
