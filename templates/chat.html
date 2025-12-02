@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>DispatchZero</title>
+	<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+<div id="everything">
+	<div id="chat"></div>
+	<div id="msgBox">
+		<input id="msg" type="text" placeholder="Type message...">
+		<button onclick="sendMessage()" id="sendMsgButton">&#9166</button>
+		<br>
+		<select name="user" id="username">
+			<optgroup label="Base">
+				<option value="base_1">Base 1</option>
+				<option value="base_2">Base 2</option>
+				<option value="base_dispatch">Base Dispatcher</option>
+			</optgroup>
+			<optgroup label="Mobile">
+				<option value="sienna_1">Sienna</option>
+				<option value="camry_1">Camry</option>
+				<option value="prius_1">Prius</option>
+				<option value="truck_1">Truck</option>
+			</optgroup>
+			<optgroup label="Radio Operator">
+				<option value="ares_1">ARES</option>
+				<option value="skywarn_1">SKYWARN</option>
+			</optgroup>
+			<option value="DISPATCH-MAIN">Main Dispatch</option>
+		</select>
+	</div>
+</div>
+
+	<script>
+		var socket = io();
+		socket.on("message", function(data) {
+			var chat = document.getElementById("chat");
+			var div = document.createElement("div");
+			div.textContent = `[${data.timestamp}]\n${data.username}: ${data.message}`;
+			div.classList.add("chatMsg");
+			chat.appendChild(div);
+		});
+		socket.on("error", function() {
+		});
+		function sendMessage() {
+			var input = document.getElementById("msg");
+			var un = document.getElementById("username");
+			socket.emit("message", {
+				username: un.value,
+				msg: input.value
+			});
+			input.value = '';
+		};
+	</script>
+	<style>
+	#msgBox {
+		border-radius: 4px;
+		border-color: black;
+		border-width: 2px;
+		position: absolute;
+		bottom: 0;
+	}
+	#msg {
+		width: 89vw;
+		height:10vh;
+		color: black;
+		font-size: clamp(15px, 7vh, 9vh);
+	}
+	#sendMsgButton {
+		width: 8vw;
+		height: 10vh;
+		font-size: 5vh;
+	}
+	#everything {
+		height: 100vw;
+		width: 100vw;
+	}
+	#chat {
+		font-size: 4vh;
+		font-family: monospace;
+	}
+	.chatMsg {
+		border: .1vw solid black;
+		border-radius: 4px;
+		color: black;
+	}
+	</style>
+</body>
+</html>
+

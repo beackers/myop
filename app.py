@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket
@@ -11,7 +10,15 @@ websocket = SocketIO(app)
 
 @app.route("/")
 def main():
-	return render_template("main.html")
+    return render_template("main.html")
+
+@app.route("/control")
+def control():
+    return render_template("control.html")
+
+@app.route("/chat")
+def chat():
+	return render_template("chat.html")
 
 @websocket.on("message")
 def newMsg(data):
