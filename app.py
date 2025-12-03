@@ -58,8 +58,3 @@ if __name__ == "__main__":
 		})
 		pass
 
-# DEPREICATED
-# No Zeroconf file, ignore
-#from zeroconf import ServiceInfo, Zeroconf
-# No Zeroconf file, ignore
-#from zeroconf import Servic
