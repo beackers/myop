@@ -1,10 +1,11 @@
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket
+import secrets, time, socket, hashlib
 
 app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
-print(f"APP SECRET KEY: {app.config['SECRET_KEY']}")
+key = hashlib.sha256(app.config["SECRET_KEY"].encode("utf-8")).hexdigest()
+print(f"Secret key generated! Hash: {key}")
 websocket = SocketIO(app)
 
 
@@ -14,11 +15,15 @@ def main():
 
 @app.route("/control")
 def control():
-    return render_template("control.html")
+    return render_template("login.html")
 
 @app.route("/chat")
 def chat():
 	return render_template("chat.html")
+
+@app.route("/bulletins", methods=['GET'])
+def bulletins():
+    return 
 
 @websocket.on("message")
 def newMsg(data):
