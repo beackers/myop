@@ -9,10 +9,18 @@ vice-width, initial-scale=1.0">
 	<nav>
 		<div id="navdiv"></div>
 	</nav>
-<!--
-	Body goes here.
-	Don't forget to add in the website URL into the addANav function!!
--->
+
+	<details>
+		<summary>post new bulletin</summary>
+		<form>
+		</form>
+	</details>
+
+	<details>
+		<summary><h2>bulletins</h2></summary>
+		<button onclick="">refresh</button>
+		<div id="bulletinList"></div>
+	</details>
 
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
