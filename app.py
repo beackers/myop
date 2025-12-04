@@ -23,7 +23,7 @@ def chat():
 
 @app.route("/bulletins", methods=['GET'])
 def bulletins():
-    return 
+    return render_template("bulletins.html")
 
 @websocket.on("message")
 def newMsg(data):
