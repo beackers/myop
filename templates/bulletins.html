@@ -1,30 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
+        <title>beackers</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=de
 vice-width, initial-scale=1.0">
-	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
 </head>
 <body>
-	<nav>
-		<div id="navdiv"></div>
-	</nav>
+        <nav>
+                <div id="navdiv"></div>
+        </nav>
 
-	<details>
-		<summary>post new bulletin</summary>
-		<form>
-		</form>
-	</details>
+        <details>
+                <summary>post new bulletin</summary>
+                <form action="/bulletinsapi" method="post" enctype="multipart/form-data">
+                        <input name="title" type="text" placeholder="title">
+                        <input name="body" type="text" placeholder="body">
+                        <input type="hidden" name="csrf" value="{{ csrf }}">
+                        <input type="submit">
+                </form>
+        </details>
 
-	<details>
-		<summary><h2>bulletins</h2></summary>
-		<button onclick="">refresh</button>
-		<div id="bulletinList"></div>
-	</details>
+        <details>
+                <summary><h2>bulletins</h2></summary>
+                <button id="refresh">refresh</button>
+                <div id="bulletinList"></div>
+        </details>
 
-	<script src="{{ url_for('static', filename='nav.js') }}"></script>
-	<script>
-		addANav("");
-	</script>
+        <script src="{{ url_for('static', filename='nav.js') }}"></script>
+        <script src="{{ url_for('static', filename='bulletins.js') }}"></script>
+    <script>
+        addANav();
+        const refresh = document.getElementById("refresh");
+        refresh.onclick = loadBulletins;
+	document.addEventListener("DOMContentLoaded", loadBulletins);
+    </script>
 </body>
 </html>

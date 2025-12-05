@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, abort, redirect
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket, hashlib, json
 
@@ -12,7 +12,7 @@ with open("static/bulletins.json", "w") as file:
     data = {
                 "bulletins": []
             }
-    json.dump(data)
+    json.dump(data, file)
 
 @app.route("/")
 def main():
@@ -30,7 +30,46 @@ def chat():
 def bulletins():
     with open("static/bulletins.json", "r") as file:
         data = json.load(file)
-    return render_template("bulletins.html")
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_hex(16)
+    return render_template("bulletins.html", csrf=session["csrf"])
+
+@app.route("/bulletinsapi", methods=["GET"])
+def bulletinsapi():
+    with open("static/bulletins.json", "r") as file:
+        data = json.load(file)
+    return jsonify(data), 200
+
+@app.route("/bulletinsapi", methods=["POST"])
+def bulletinsapipost():
+    posted = request.form.get("csrf")
+    stored = session.get("csrf")
+    if not posted or posted != stored:
+        abort(403)
+    bulletin = request.form
+    # May need to get changed based on how I want this to be formatted.
+    # Note to self: potentially use SQLite in future for better data management.
+    if not isinstance(bulletin, dict):
+        abort(403)
+    if "title" not in bulletin: abort(403)
+    if "body" not in bulletin: abort(403)
+    print(bulletin)
+    data = {
+            "title": bulletin["title"],
+            "body": bulletin["body"],
+            "time": time.time(),
+            "exp-time": None #bulletin["expires"]
+        }
+    with open("static/bulletins.json", "r") as file:
+        old = json.load(file)
+        print(str(old))
+    old["bulletins"] = old["bulletins"] + [data]
+    print(str(old))
+    with open("static/bulletins.json", "w") as file:
+        json.dump(old, file)
+    return redirect("/bulletins"), 301
+
+
 
 @websocket.on("message")
 def newMsg(data):
