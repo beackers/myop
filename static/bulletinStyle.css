@@ -1,0 +1,15 @@
+.bulletin {
+	border: black 2px solid;
+	border-radius: 4%;
+	width: 95%;
+	height: auto;
+	text-align: left;
+}
+.bulletin h3 {
+	font-family: monospace;
+}
+.bulletinMeta {
+	font-family: sans-serif;
+	padding: 5px;
+}
+
