@@ -6,6 +6,7 @@
 	<meta name="viewport" content="width=de
 vice-width, initial-scale=1.0">
         <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+	<link rel="stylesheet" href="{{ url_for('static', filename='bulletinStyle.css') }}">
 </head>
 <body>
         <nav>
@@ -16,14 +17,14 @@ vice-width, initial-scale=1.0">
                 <summary>post new bulletin</summary>
                 <form action="/bulletinsapi" method="post" enctype="multipart/form-data">
                         <input name="title" type="text" placeholder="title">
-                        <input name="body" type="text" placeholder="body">
+			<textarea name="body" placeholder="body"></textarea>
                         <input type="hidden" name="csrf" value="{{ csrf }}">
                         <input type="submit">
                 </form>
         </details>
 
         <details>
-                <summary><h2>bulletins</h2></summary>
+		<summary>bulletins</summary>
                 <button id="refresh">refresh</button>
                 <div id="bulletinList"></div>
         </details>
