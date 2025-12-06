@@ -1,7 +1,6 @@
 function addANav() {
     const navdiv = document.getElementById("navdiv");
     const current = window.location.pathname;
-	var acceptablePaths = [];
 
     // change / add websites here!
     const navData = [
@@ -41,14 +40,13 @@ function addANav() {
             }
 
             optgroup.appendChild(opt);
-			acceptablePaths.push(item.value);
         }
 
         sel.appendChild(optgroup);
     }
 
     sel.addEventListener("change", () => {
-        if (sel.value !== current && acceptablePaths.includes(sel.value)) {
+        if (sel.value !== current) {
             window.location.href = sel.value;
         }
     });
