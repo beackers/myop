@@ -1,12 +1,15 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket, hashlib, json, logging
+import secrets, time, socket, hashlib, json, logging, sqlite3
 
+
+# App + WebSocket
 app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
 key = hashlib.sha256(app.config["SECRET_KEY"].encode("utf-8")).hexdigest()
 websocket = SocketIO(app)
 
+# Logging
 def startLogger():
     log = logging.getLogger(__name__)
     log.setLevel("INFO")
@@ -24,19 +27,40 @@ def startLogger():
 log = startLogger()
 log.info(f"Secret key generated! Hash: {key}")
 
+
+# Database
+with sqlite3.connect("myop.db") as conn:
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            callsign TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            pwdhash TEXT NOT NULL,
+            permissions TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1))
+        );
+            """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bulletins (
+            id INTEGER PRIMARY KEY,
+            origin TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT,
+            timestamp INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires INTEGER
+        )
+            """)
+    conn.commit()
+
+
 # Little bit of color never hurt anybody :)
 def coloredText(stuff, colorcode):
     return f"\033[{code}m{text}\033[0m"
 
 
-
+# Set up files
 try:
-    with open("static/bulletins.json", "w") as file:
-        data = {
-                    "bulletins": []
-                }
-        json.dump(data, file)
-
     with open("static/config.json", "r") as file:
         data = json.load(file)
         assert type(data) == dict
@@ -55,6 +79,8 @@ except (AssertionError, json.decoder.JSONDecodeError):
     log.exception("Error loading config.json")
 
 
+
+# Misc. routes
 @app.route("/")
 def main():
     return render_template("main.html")
@@ -98,27 +124,33 @@ def controlapi():
 # def login():
 #     return render_template("login.html")
 
-@app.route("/chat")
-def chat():
-    return render_template("chat.html")
-
-
 
 
 # ======== Bulletins ======== #
 
 @app.route("/bulletins", methods=['GET'])
 def bulletins():
-    with open("static/bulletins.json", "r") as file:
-        data = json.load(file)
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
     return render_template("bulletins.html", csrf=session["csrf"])
 
 @app.route("/bulletinsapi", methods=["GET"])
 def bulletinsapi():
-    with open("static/bulletins.json", "r") as file:
-        data = json.load(file)
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("SELECT * FROM bulletins")
+        b = cur.fetchall()
+    data = {
+            "bulletins": []
+            }
+    for bulletin in b:
+        data["bulletins"].append({
+            "origin": bulletin[1],
+            "title": bulletin[2],
+            "body": bulletin[3],
+            "timestamp": bulletin[4],
+            "expires": bulletins[5]
+        })
     return jsonify(data), 200
 
 @app.route("/bulletinsapi", methods=["POST"])
@@ -128,29 +160,26 @@ def bulletinsapipost():
     if not posted or posted != stored:
         abort(403)
     bulletin = request.form
-    # May need to get changed based on how I want this to be formatted.
-    # Note to self: potentially use SQLite in future for better data management.
     if not isinstance(bulletin, dict):
         abort(403)
-    if "title" not in bulletin: abort(403)
-    if "body" not in bulletin: abort(403)
-    data = {
-            "title": bulletin["title"],
-            "body": bulletin["body"],
-            "time": time.time(),
-            "exp-time": None #bulletin["expires"]
-        }
-    with open("static/bulletins.json", "r") as file:
-        old = json.load(file)
-    old["bulletins"] = old["bulletins"] + [data]
-    with open("static/bulletins.json", "w") as file:
-        json.dump(old, file)
+    if ("title" and "expires" and "origin") not in bulletin: abort(403)
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute(
+                "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
+                (bulletin["origin"], bulletin["title"], bulletin["body"], bulletin["timestamp"], bulletin["expires"])
+                )
+        c.commit()
     return redirect("/bulletins"), 301
 
 
 
 
 # ======== Chat Stuff ========== #
+
+@app.route("/chat", methods=['GET'])
+def chat():
+    return render_template("chat.html")
 
 @websocket.on("message")
 def newMsg(data):
