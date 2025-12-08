@@ -10,8 +10,14 @@ vice-width, initial-scale=1.0">
 		<div id="navdiv"></div>
 	</nav>
 	<a href="/log">app logs</a>
-	<div id="currConfig"></div>
-
+	<form action="/controlapi" method="post">
+		<input type="text" name="title" value="{{ title }}"><br>
+		<label for="chat">Chat enabled?</label>
+		<input type="checkbox" name="chat" value="chat = True"><br>
+		<label for="bulletins">Bulletins enabled?</label>
+		<input type="checkbox" name="bulletins" value="True"><br>
+		<input type="submit">
+	</form>
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
 		addANav("");

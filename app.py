@@ -86,7 +86,7 @@ def main():
     return render_template("main.html")
 
 @app.route("/log")
-def log():
+def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
 
@@ -108,14 +108,17 @@ def controlapi():
     else:
         data = request.form
         new = {
-                "title": data["title"],
-                "services": data["services"],
-                "files": data["files"]
+                "title": data.get("title"),
+                "services": {
+                    "chat": data.get("chat") is not None,
+                    "bulletins": data.get("bulletins") is not None
+                    },
+                "files": data.get("files")
                 }
         with open("static/config.json", "w") as file:
             json.dump(data, file)
         log.info("config rewritten!")
-        return "rewritten", 200
+        return redirect('/control'), 301
 
 
 
@@ -149,7 +152,7 @@ def bulletinsapi():
             "title": bulletin[2],
             "body": bulletin[3],
             "timestamp": bulletin[4],
-            "expires": bulletins[5]
+            "expires": bulletin[5]
         })
     return jsonify(data), 200
 
@@ -169,7 +172,7 @@ def bulletinsapipost():
         cur = c.cursor()
         cur.execute(
                 "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
-                (bulletin["origin"], bulletin["title"], bulletin["body"], bulletin["timestamp"], bulletin["expires"])
+                (bulletin.get("origin"), bulletin.get("title"), bulletin.get("body"), bulletin.get("timestamp"), bulletin.get("expires"))
                 )
         c.commit()
     log.debug("Changes commited")

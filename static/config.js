@@ -1,11 +1,12 @@
 function refreshConfig() {
     currConfigContainer = document.getElementById("currConfig");
+    var config;
     fetch("/configapi")
     .then (response) => {
         response.json();
     }
     .then (json) => {
-        console.log(json);
+        config = json;
     };
 }
 function sendConfig() {
