@@ -12,7 +12,7 @@ websocket = SocketIO(app)
 # Logging
 def startLogger():
     log = logging.getLogger(__name__)
-    log.setLevel("INFO")
+    log.setLevel("DEBUG")
     if not log.handlers:
         handler = logging.FileHandler("static/app.log", encoding="utf-8")
         streamHandler = logging.StreamHandler()
@@ -132,7 +132,7 @@ def controlapi():
 def bulletins():
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
-    return render_template("bulletins.html", csrf=session["csrf"])
+    return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
 def bulletinsapi():
@@ -160,9 +160,11 @@ def bulletinsapipost():
     if not posted or posted != stored:
         abort(403)
     bulletin = request.form
+    log.debug(f"{bulletin=}")
     if not isinstance(bulletin, dict):
         abort(403)
     if ("title" and "expires" and "origin") not in bulletin: abort(403)
+    log.debug("bulletin passed basic qualifications")
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
         cur.execute(
@@ -170,6 +172,7 @@ def bulletinsapipost():
                 (bulletin["origin"], bulletin["title"], bulletin["body"], bulletin["timestamp"], bulletin["expires"])
                 )
         c.commit()
+    log.debug("Changes commited")
     return redirect("/bulletins"), 301
 
 
