@@ -18,9 +18,18 @@ with open("static/bulletins.json", "w") as file:
 def main():
     return render_template("main.html")
 
+# Can add an admin login page at a later time.
+
 @app.route("/control")
 def control():
-    return render_template("login.html")
+    # check user.logged-in logic, for later
+    # return redirect("/login"), 301
+    return render_template("control.html")
+
+# The actual login page
+# @app.route("/login")
+# def login():
+#     return render_template("login.html")
 
 @app.route("/chat")
 def chat():
@@ -53,7 +62,6 @@ def bulletinsapipost():
         abort(403)
     if "title" not in bulletin: abort(403)
     if "body" not in bulletin: abort(403)
-    print(bulletin)
     data = {
             "title": bulletin["title"],
             "body": bulletin["body"],
@@ -62,9 +70,7 @@ def bulletinsapipost():
         }
     with open("static/bulletins.json", "r") as file:
         old = json.load(file)
-        print(str(old))
     old["bulletins"] = old["bulletins"] + [data]
-    print(str(old))
     with open("static/bulletins.json", "w") as file:
         json.dump(old, file)
     return redirect("/bulletins"), 301
