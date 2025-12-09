@@ -1,43 +1,167 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket, hashlib, json
+import secrets, time, socket, hashlib, json, logging, sqlite3
 
+
+# App + WebSocket
 app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
 key = hashlib.sha256(app.config["SECRET_KEY"].encode("utf-8")).hexdigest()
-print(f"Secret key generated! Hash: {key}")
 websocket = SocketIO(app)
 
-with open("static/bulletins.json", "w") as file:
-    data = {
-                "bulletins": []
-            }
-    json.dump(data, file)
+# Logging
+def startLogger():
+    log = logging.getLogger(__name__)
+    log.setLevel("INFO")
+    if not log.handlers:
+        handler = logging.FileHandler("static/app.log", encoding="utf-8")
+        streamHandler = logging.StreamHandler()
+        fmt = "{asctime} [{levelname}] -- {message}"
+        formatter = logging.Formatter(fmt, style="{")
+        handler.setFormatter(formatter)
+        streamHandler.setFormatter(formatter)
+        log.addHandler(handler)
+        log.addHandler(streamHandler)
+    return log
 
+log = startLogger()
+log.info(f"Secret key generated! Hash: {key}")
+
+
+# Database
+with sqlite3.connect("myop.db") as conn:
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            callsign TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            pwdhash TEXT NOT NULL,
+            permissions TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1))
+        );
+            """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS bulletins (
+            id INTEGER PRIMARY KEY,
+            origin TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT,
+            timestamp INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires INTEGER
+        )
+            """)
+    conn.commit()
+
+
+# Little bit of color never hurt anybody :)
+def coloredText(stuff, colorcode):
+    return f"\033[{code}m{text}\033[0m"
+
+
+# Set up files
+try:
+    with open("static/config.json", "r") as file:
+        data = json.load(file)
+        assert type(data) == dict
+
+except:
+    with open("static/config.json", "w") as file:
+        data = {
+                "title": None,
+                "services": {
+                    "chat": True,
+                    "bulletins": True
+                    },
+                "files": []
+                }
+        json.dump(data, file)
+    log.exception("Error loading config.json")
+
+
+
+# Misc. routes
 @app.route("/")
 def main():
     return render_template("main.html")
 
-@app.route("/control")
-def control():
-    return render_template("login.html")
+@app.route("/log")
+def showlog():
+    with open("static/app.log", "r") as log:
+        return log.read().encode("utf-8"), 200
 
-@app.route("/chat")
-def chat():
-	return render_template("chat.html")
+
+# ======== Control Panel ======== #
+# Can add an admin login page at a later time.
+
+@app.route("/control", methods=['GET'])
+def control():
+    # check user.logged-in logic, for later
+    # return redirect("/login"), 301
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_hex(16)
+    return render_template("control.html", csrf=session["csrf"])
+
+@app.route("/controlapi", methods=['GET', 'POST'])
+def controlapi():
+    if request.method == "GET":
+        with open('static/config.json', "r") as file:
+            data = json.load(file)
+            log.debug(f"Sending Current Config File:\n{data}")
+            return jsonify(data), 200
+    elif request.method == "POST":
+        data = request.form
+        if not data.get("csrf"): abort(403)
+        if not data.get("csrf") == session["csrf"]: abort(403)
+        new = {
+                "title": data.get("title"),
+                "services": {
+                    "chat": data.get("chat") is not None,
+                    "bulletins": data.get("bulletins") is not None
+                    }
+                }
+        with open("static/config.json", "w") as file:
+            json.dump(new, file)
+            log.info("config rewritten!")
+            return redirect('/control', code=301)
+
+
+
+# The actual login page
+# @app.route("/login")
+# def login():
+#     return render_template("login.html")
+
+
+
+# ======== Bulletins ======== #
 
 @app.route("/bulletins", methods=['GET'])
 def bulletins():
-    with open("static/bulletins.json", "r") as file:
-        data = json.load(file)
+    with open("static/config.json", "r") as f:
+        config = json.load(f)
+        if not config.get("services").get("bulletins"): return render_template("disabled.html"), 403
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
-    return render_template("bulletins.html", csrf=session["csrf"])
+    return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
-def bulletinsapi():
-    with open("static/bulletins.json", "r") as file:
-        data = json.load(file)
+def bulletinsapiget():
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("SELECT * FROM bulletins")
+        b = cur.fetchall()
+    data = {
+            "bulletins": []
+            }
+    for bulletin in b:
+        data["bulletins"].append({
+            "origin": bulletin[1],
+            "title": bulletin[2],
+            "body": bulletin[3],
+            "timestamp": bulletin[4],
+            "expires": bulletin[5]
+        })
     return jsonify(data), 200
 
 @app.route("/bulletinsapi", methods=["POST"])
@@ -47,60 +171,72 @@ def bulletinsapipost():
     if not posted or posted != stored:
         abort(403)
     bulletin = request.form
-    # May need to get changed based on how I want this to be formatted.
-    # Note to self: potentially use SQLite in future for better data management.
+    log.debug(f"{bulletin=}")
     if not isinstance(bulletin, dict):
         abort(403)
-    if "title" not in bulletin: abort(403)
-    if "body" not in bulletin: abort(403)
-    print(bulletin)
-    data = {
-            "title": bulletin["title"],
-            "body": bulletin["body"],
-            "time": time.time(),
-            "exp-time": None #bulletin["expires"]
-        }
-    with open("static/bulletins.json", "r") as file:
-        old = json.load(file)
-        print(str(old))
-    old["bulletins"] = old["bulletins"] + [data]
-    print(str(old))
-    with open("static/bulletins.json", "w") as file:
-        json.dump(old, file)
+    if ("title" and "expires" and "origin") not in bulletin: abort(403)
+    log.debug("bulletin passed basic qualifications")
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute(
+                "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
+                (bulletin.get("origin"), bulletin.get("title"), bulletin.get("body"), bulletin.get("timestamp"), bulletin.get("expires"))
+                )
+        c.commit()
+    log.debug("Changes commited")
     return redirect("/bulletins"), 301
 
+@app.route("/bulletinsapi", methods=['DELETE'])
+def bulletinsapidelete():
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("DELETE FROM bulletins;")
+        c.commit()
+    return jsonify({"status": 200})
 
+
+
+# ======== Chat Stuff ========== #
+
+@app.route("/chat", methods=['GET'])
+def chat():
+    with open("static/config.json", "r") as f:
+        config = json.load(f)
+        if not config.get("services").get("chat"): return render_template("disabled.html"), 403
+    return render_template("chat.html")
 
 @websocket.on("message")
 def newMsg(data):
-	try:
-		print("New Message:" + data.get("msg", " "))
-		dataToSend = {
-			"timestamp": time.asctime(),
-			"username": data.get("username", "unknown"),
-			"message": data.get("msg", "<blank>")
-		}
-		dataType = "message"
-	except Exception as e:
-		dataToSend = {
-			"timestamp": "SYSTEM",
-			"username": str(type(e)),
-			"message": str(e)
-		}
-		print("Handled exception in newMsg()")
-		dataType = "error"
+    try:
+        print("New Message:" + data.get("msg", " "))
+        dataToSend = {
+            "timestamp": time.asctime(),
+            "username": data.get("username", "unknown"),
+            "message": data.get("msg", "<blank>")
+        }
+        dataType = "message"
+    except Exception as e:
+        dataToSend = {
+            "timestamp": "SYSTEM",
+            "username": str(type(e)),
+            "message": str(e)
+        }
+        print("Handled exception in newMsg()")
+        dataType = "error"
 
-	finally:
-		emit(dataType, dataToSend, broadcast=True)
+    finally:
+        emit(dataType, dataToSend, broadcast=True)
+
 
 if __name__ == "__main__":
-	try:
-		websocket.run(app, host="0.0.0.0", port=5000)
-	except Exception as inst:
-		emit("error", {
-			"timestamp": time.asctime(),
-			"title": str(type(inst)),
-			"detail": str(e)
-		})
-		pass
+    try:
+        websocket.run(app, host="0.0.0.0", port=5000)
+    except Exception as inst:
+        emit("error", {
+            "timestamp": time.asctime(),
+            "title": str(type(inst)),
+            "detail": str(e)
+        })
+        log.error("Something happened!", exc_info=1)
+        pass
 
