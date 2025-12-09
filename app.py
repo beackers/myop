@@ -138,6 +138,9 @@ def controlapi():
 
 @app.route("/bulletins", methods=['GET'])
 def bulletins():
+    with open("static/config.json", "r") as f:
+        config = json.load(f)
+        if not config.get("services").get("bulletins"): return render_template("disabled.html"), 403
     if "csrf" not in session:
         session["csrf"] = secrets.token_hex(16)
     return render_template("bulletins.html", csrf=session["csrf"], uname="None")
