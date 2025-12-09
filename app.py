@@ -109,7 +109,7 @@ def controlapi():
             data = json.load(file)
             log.debug(f"Sending Current Config File:\n{data}")
             return jsonify(data), 200
-    else:
+    elif request.method == "POST":
         data = request.form
         if not data.get("csrf"): abort(403)
         if not data.get("csrf") == session["csrf"]: abort(403)
@@ -146,7 +146,7 @@ def bulletins():
     return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
-def bulletinsapi():
+def bulletinsapiget():
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
         cur.execute("SELECT * FROM bulletins")
@@ -186,6 +186,13 @@ def bulletinsapipost():
     log.debug("Changes commited")
     return redirect("/bulletins"), 301
 
+@app.route("/bulletinsapi", methods=['DELETE'])
+def bulletinsapidelete():
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("DELETE FROM bulletins;")
+        c.commit()
+    return jsonify({"status": 200})
 
 
 
@@ -193,6 +200,9 @@ def bulletinsapipost():
 
 @app.route("/chat", methods=['GET'])
 def chat():
+    with open("static/config.json", "r") as f:
+        config = json.load(f)
+        if not config.get("services").get("chat"): return render_template("disabled.html"), 403
     return render_template("chat.html")
 
 @websocket.on("message")

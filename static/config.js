@@ -64,5 +64,14 @@ function refreshConfig(csrf) {
 }
 
 
-function sendConfig() {
+function addDeleteBulletins() {
+	const button = document.createElement("button");
+	button.textContent = "Delete bulletins"
+	button.onclick = function () {
+		fetch("/bulletinsapi", {
+			"method": "DELETE"
+		});
+	};
+	const buttonwrapper = document.getElementById("deletebulletins")
+	buttonwrapper.appendChild(button)
 }

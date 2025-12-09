@@ -10,13 +10,15 @@ vice-width, initial-scale=1.0">
 		<div id="navdiv"></div>
 	</nav>
 	<a href="/log">app logs</a>
-	<div id="config"></div>
+	<div id="config"></div><br>
+	<div id="deletebulletins"></div>
 
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script src="{{ url_for('static', filename='config.js') }}"></script>
 	<script>
 		addANav();
 		refreshConfig("{{ csrf }}");
+		addDeleteBulletins();
 	</script>
 </body>
 </html>
