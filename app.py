@@ -12,7 +12,7 @@ websocket = SocketIO(app)
 # Logging
 def startLogger():
     log = logging.getLogger(__name__)
-    log.setLevel("DEBUG")
+    log.setLevel("INFO")
     if not log.handlers:
         handler = logging.FileHandler("static/app.log", encoding="utf-8")
         streamHandler = logging.StreamHandler()
@@ -65,7 +65,7 @@ try:
         data = json.load(file)
         assert type(data) == dict
 
-except (AssertionError, json.decoder.JSONDecodeError):
+except:
     with open("static/config.json", "w") as file:
         data = {
                 "title": None,
@@ -98,27 +98,32 @@ def showlog():
 def control():
     # check user.logged-in logic, for later
     # return redirect("/login"), 301
-    return render_template("control.html")
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_hex(16)
+    return render_template("control.html", csrf=session["csrf"])
 
 @app.route("/controlapi", methods=['GET', 'POST'])
 def controlapi():
     if request.method == "GET":
         with open('static/config.json', "r") as file:
-            return jsonify(json.load(file).encode("utf-8")), 200
+            data = json.load(file)
+            log.debug(f"Sending Current Config File:\n{data}")
+            return jsonify(data), 200
     else:
         data = request.form
+        if not data.get("csrf"): abort(403)
+        if not data.get("csrf") == session["csrf"]: abort(403)
         new = {
                 "title": data.get("title"),
                 "services": {
                     "chat": data.get("chat") is not None,
                     "bulletins": data.get("bulletins") is not None
-                    },
-                "files": data.get("files")
+                    }
                 }
         with open("static/config.json", "w") as file:
-            json.dump(data, file)
-        log.info("config rewritten!")
-        return redirect('/control'), 301
+            json.dump(new, file)
+            log.info("config rewritten!")
+            return redirect('/control', code=301)
 
 
 
@@ -209,6 +214,7 @@ def newMsg(data):
     finally:
         emit(dataType, dataToSend, broadcast=True)
 
+
 if __name__ == "__main__":
     try:
         websocket.run(app, host="0.0.0.0", port=5000)
@@ -218,5 +224,6 @@ if __name__ == "__main__":
             "title": str(type(inst)),
             "detail": str(e)
         })
+        log.error("Something happened!", exc_info=1)
         pass
 
