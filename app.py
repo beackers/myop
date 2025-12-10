@@ -83,7 +83,9 @@ except:
 # Misc. routes
 @app.route("/")
 def main():
-    return render_template("main.html")
+    with open("static/config.json", "r") as f:
+        title = json.load(f)["title"]
+    return render_template("main.html", title=title)
 
 @app.route("/log")
 def showlog():
