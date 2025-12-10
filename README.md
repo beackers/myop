@@ -9,6 +9,8 @@
 
 THIS CODE HAS NOT BEEN TESTED IN DEPLOYMENT. Author does not warrant that the code will be free of bugs / unintended actions/consequences / what have you. **TL;DR: it might not work. I'm still working on it.**
 
+This software was written by a United States of America radio operator. Different countries may have different laws regarding amateur radio. **This software was intended for USA use and has not been internationalized. If you live outside the continental US, not in a US territory, or outside of US waters, different laws may apply.** Always follow your country's own laws and regulations. Use this software at your own risk.
+
 This software is intended to improve and enhance existing communications between licensed amateur radio operators with AREDN (Amateur Radio Emergency Data Network) nodes. IT IS NOT INTENDED FOR CONTACT WITH EMERGENCY DISPATCHERS. IN AN EMERGENCY, DIAL 911.
 
 ---
