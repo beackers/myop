@@ -2,3 +2,4 @@
 static/bulletins.json
 static/app.log
 static/config.json
+/packages/*
