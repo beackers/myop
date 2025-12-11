@@ -14,6 +14,7 @@ vice-width, initial-scale=1.0">
 		<input type="text" id="username" name="username" value="{{ username }}"><br>
 		<label for="password">Password:</label>
 		<input type="password" id="password" name="password"><br>
+		<input type="hidden" name="csrf" value="{{ csrf }}">
 		<input type="submit">
 	</form>
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>

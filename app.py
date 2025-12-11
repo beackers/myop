@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket, hashlib, json, logging, sqlite3, functools
 
@@ -87,7 +88,7 @@ def logged_in(route):
         # for now just worry about the decorator
         with sqlite3.connect("myop.db") as c:
             cur = c.cursor()
-            if session.get("username"):
+            if session.get("user"):
                 cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username")))
                 if not session.get("username") in cur.fetchall():
                     log.debug("user redirected to login")
@@ -171,7 +172,29 @@ def login():
     if request.method == "GET":
         return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"])
     elif request.method == "POST":
-        return redirect("/", code=301)
+        u = request.form
+        if ("csrf" or "username" or "password")not in u: abort(403)
+        if session["csrf"] != u["csrf"]: abort(403)
+        log.debug("login form passed basic qualifications")
+        with sqlite3.connect("myop.db") as c:
+            cur = c.cursor()
+            c.row_factory = sqlite3.Row
+            cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
+            row = cur.fetchone()
+            if row is None:
+                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"]}")
+                abort(403)
+            if (row) and (check_password_hash(row["pwdhash"], u["password"])):
+                session["user"] = row["callsign"]
+                log.info("user logged in!")
+                return redirect("/", code=301)
+            else:
+                log.warning(f"someone failed a login!\nusername: {u["username"]}\npassword: {u["password"]}")
+                abort(403)
+    elif request.method == "DELETE":
+        session["user"] = None
+        return redirect("/login", code=301)
+
 
 
 
