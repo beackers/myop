@@ -9,11 +9,13 @@ vice-width, initial-scale=1.0">
 	<nav>
 		<div id="navdiv"></div>
 	</nav>
-<!--
-	Body goes here.
-	Don't forget to add in the website URL into the addANav function!!
--->
-
+	<form action="/login" method="POST">
+		<label for="username">Call sign:</label>
+		<input type="text" id="username" name="username" value="{{ username }}"><br>
+		<label for="password">Password:</label>
+		<input type="password" id="password" name="password"><br>
+		<input type="submit">
+	</form>
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
 		addANav("");

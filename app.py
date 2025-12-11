@@ -1,7 +1,9 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket, hashlib, json, logging, sqlite3
+import secrets, time, socket, hashlib, json, logging, sqlite3, functools
 
+
+# -------- SETUP -------- #
 
 # App + WebSocket
 app = Flask(__name__.split(".")[0])
@@ -16,7 +18,7 @@ def startLogger():
     if not log.handlers:
         handler = logging.FileHandler("static/app.log", encoding="utf-8")
         streamHandler = logging.StreamHandler()
-        fmt = "{asctime} [{levelname}] -- {message}"
+        fmt = "{asctime} [{levelname}]: \n{message}"
         formatter = logging.Formatter(fmt, style="{")
         handler.setFormatter(formatter)
         streamHandler.setFormatter(formatter)
@@ -78,33 +80,65 @@ except:
         json.dump(data, file)
     log.exception("Error loading config.json")
 
+# Check if logged in decorator
+def logged_in(route):
+    @functools.wraps(route)
+    def wrapper_logged_in(*args, **kwargs):
+        # for now just worry about the decorator
+        with sqlite3.connect("myop.db") as c:
+            cur = c.cursor()
+            if session.get("username"):
+                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username")))
+                if not session.get("username") in cur.fetchall():
+                    log.debug("user redirected to login")
+                    return redirect("/login")
+                else:
+                    log.debug("user passed")
+                    return route(*args, **kwargs)
+            else:
+                log.info("user passed without login")
+                return route(*args, **kwargs)
+    return wrapper_logged_in
 
+# csrf checking
+def needs_csrf(route):
+    @functools.wraps(route)
+    def wrapper_csrf(*args, **kwargs):
+        if "csrf" in session:
+            return route(*args, **kwargs)
+        else:
+            session["csrf"] = secrets.token_hex(16)
+            return route(*args, **kwargs)
+    return wrapper_csrf
+
+
+# ------------ APP ------------- #
 
 # Misc. routes
 @app.route("/")
+@logged_in
 def main():
     with open("static/config.json", "r") as f:
         title = json.load(f)["title"]
     return render_template("main.html", title=title)
 
 @app.route("/log")
+@logged_in
 def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
 
 
 # ======== Control Panel ======== #
-# Can add an admin login page at a later time.
 
 @app.route("/control", methods=['GET'])
+@logged_in
+@needs_csrf
 def control():
-    # check user.logged-in logic, for later
-    # return redirect("/login"), 301
-    if "csrf" not in session:
-        session["csrf"] = secrets.token_hex(16)
     return render_template("control.html", csrf=session["csrf"])
 
 @app.route("/controlapi", methods=['GET', 'POST'])
+@logged_in
 def controlapi():
     if request.method == "GET":
         with open('static/config.json', "r") as file:
@@ -130,24 +164,30 @@ def controlapi():
 
 
 # The actual login page
-# @app.route("/login")
-# def login():
-#     return render_template("login.html")
+# Pro tip: no @logged_in (for obvious reasons)
+@app.route("/login", methods=["GET", "POST"])
+@needs_csrf
+def login():
+    if request.method == "GET":
+        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"])
+    elif request.method == "POST":
+        return redirect("/", code=301)
 
 
 
 # ======== Bulletins ======== #
 
 @app.route("/bulletins", methods=['GET'])
+@logged_in
+@needs_csrf
 def bulletins():
     with open("static/config.json", "r") as f:
         config = json.load(f)
         if not config.get("services").get("bulletins"): return render_template("disabled.html"), 403
-    if "csrf" not in session:
-        session["csrf"] = secrets.token_hex(16)
     return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
+@logged_in
 def bulletinsapiget():
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
@@ -167,6 +207,7 @@ def bulletinsapiget():
     return jsonify(data), 200
 
 @app.route("/bulletinsapi", methods=["POST"])
+@logged_in
 def bulletinsapipost():
     posted = request.form.get("csrf")
     stored = session.get("csrf")
@@ -189,6 +230,7 @@ def bulletinsapipost():
     return redirect("/bulletins"), 301
 
 @app.route("/bulletinsapi", methods=['DELETE'])
+@logged_in
 def bulletinsapidelete():
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
@@ -201,6 +243,7 @@ def bulletinsapidelete():
 # ======== Chat Stuff ========== #
 
 @app.route("/chat", methods=['GET'])
+@logged_in
 def chat():
     with open("static/config.json", "r") as f:
         config = json.load(f)
