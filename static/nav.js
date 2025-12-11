@@ -48,7 +48,7 @@ function addANav() {
 
     sel.addEventListener("change", () => {
         if (sel.value !== current && acceptablePaths.includes(window.location.pathname)) {
-            window.location.href = sel.value;
+            window.location.href = sel.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
     });
 
