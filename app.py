@@ -189,7 +189,7 @@ def login():
                 log.info("user logged in!")
                 return redirect("/", code=301)
             else:
-                log.warning(f"someone failed a login!\nusername: {u["username"]}\npassword: {u["password"]}")
+                log.warning(f"someone failed a login!\nusername: {u["username"]}")
                 abort(403)
     elif request.method == "DELETE":
         session["user"] = None
