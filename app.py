@@ -89,7 +89,7 @@ def logged_in(route):
         with sqlite3.connect("myop.db") as c:
             cur = c.cursor()
             if session.get("user"):
-                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username")))
+                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username"),))
                 if not session.get("username") in cur.fetchall():
                     log.debug("user redirected to login")
                     return redirect("/login")
@@ -182,10 +182,10 @@ def login():
             cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
             row = cur.fetchone()
             if row is None:
-                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"]}")
+                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"].lower()}")
                 abort(403)
-            if (row) and (check_password_hash(row["pwdhash"], u["password"])):
-                session["user"] = row["callsign"]
+            if (row) and (check_password_hash(row[1], u["password"])):
+                session["user"] = row[0]
                 log.info("user logged in!")
                 return redirect("/", code=301)
             else:
