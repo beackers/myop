@@ -48,7 +48,7 @@ function addANav() {
 
     sel.addEventListener("change", () => {
         if (sel.value !== current && acceptablePaths.includes(window.location.pathname)) {
-	        const clean = DOMPurify.sanitize(sel.value);
+	    const clean = DOMPurify.sanitize(sel.value);
             window.location.href = clean;
         }
     });
