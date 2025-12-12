@@ -136,7 +136,13 @@ def showlog():
 @logged_in
 @needs_csrf
 def control():
-    return render_template("control.html", csrf=session["csrf"])
+    with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
+        cur = c.cursor()
+        cur.execute("SELECT * FROM users ORDER BY name")
+        users = cur.fetchall()
+        log.critical(users)
+    return render_template("control.html", csrf=session["csrf"], users=users)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
 @logged_in
@@ -161,6 +167,28 @@ def controlapi():
             json.dump(new, file)
             log.info("config rewritten!")
             return redirect('/control', code=301)
+
+
+@app.route("/control/user/add", methods=["GET", "POST"])
+@logged_in
+@needs_csrf
+def add_user():
+    if request.method == "GET":
+        return render_template("add_user.html", csrf=session["csrf"])
+    
+    newuser = request.form
+    if ("csrf" or "callsign") not in newuser:
+        log.warning("someone tried to add a new user, but forgot basic deets")
+        abort(500)
+    if newuser["csrf"] != session["csrf"]: abort(403)
+    log.debug("/control/user/add: form passed basic qualifications")
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("INSERT INTO users (callsign, name) VALUES ?, ?", (newuser["callsign"], newuser.get("name")))
+        conn.commit()
+    log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
+    return redirect("/control", 301)
+
 
 
 
