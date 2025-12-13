@@ -89,7 +89,7 @@ def logged_in(route):
         with sqlite3.connect("myop.db") as c:
             cur = c.cursor()
             if session.get("user"):
-                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username")))
+                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username"),))
                 if not session.get("username") in cur.fetchall():
                     log.debug("user redirected to login")
                     return redirect("/login")
@@ -136,7 +136,13 @@ def showlog():
 @logged_in
 @needs_csrf
 def control():
-    return render_template("control.html", csrf=session["csrf"])
+    with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
+        cur = c.cursor()
+        cur.execute("SELECT * FROM users ORDER BY name")
+        users = cur.fetchall()
+        log.critical(users)
+    return render_template("control.html", csrf=session["csrf"], users=users)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
 @logged_in
@@ -163,6 +169,28 @@ def controlapi():
             return redirect('/control', code=301)
 
 
+@app.route("/control/user/add", methods=["GET", "POST"])
+@logged_in
+@needs_csrf
+def add_user():
+    if request.method == "GET":
+        return render_template("add_user.html", csrf=session["csrf"])
+    
+    newuser = request.form
+    if ("csrf" or "callsign") not in newuser:
+        log.warning("someone tried to add a new user, but forgot basic deets")
+        abort(500)
+    if newuser["csrf"] != session["csrf"]: abort(403)
+    log.debug("/control/user/add: form passed basic qualifications")
+    with sqlite3.connect("myop.db") as c:
+        cur = c.cursor()
+        cur.execute("INSERT INTO users (callsign, name) VALUES ?, ?", (newuser["callsign"], newuser.get("name")))
+        conn.commit()
+    log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
+    return redirect("/control", 301)
+
+
+
 
 # The actual login page
 # Pro tip: no @logged_in (for obvious reasons)
@@ -182,14 +210,14 @@ def login():
             cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
             row = cur.fetchone()
             if row is None:
-                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"]}")
+                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"].lower()}")
                 abort(403)
-            if (row) and (check_password_hash(row["pwdhash"], u["password"])):
-                session["user"] = row["callsign"]
+            if (row) and (check_password_hash(row[1], u["password"])):
+                session["user"] = row[0]
                 log.info("user logged in!")
                 return redirect("/", code=301)
             else:
-                log.warning(f"someone failed a login!\nusername: {u["username"]}\npassword: {u["password"]}")
+                log.warning(f"someone failed a login!\nusername: {u["username"]}")
                 abort(403)
     elif request.method == "DELETE":
         session["user"] = None

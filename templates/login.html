@@ -1,26 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
+    <title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
 vice-width, initial-scale=1.0">
-	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
 </head>
 <body>
-	<nav>
-		<div id="navdiv"></div>
-	</nav>
-	<form action="/login" method="POST">
-		<label for="username">Call sign:</label>
-		<input type="text" id="username" name="username" value="{{ username }}"><br>
-		<label for="password">Password:</label>
-		<input type="password" id="password" name="password"><br>
-		<input type="hidden" name="csrf" value="{{ csrf }}">
-		<input type="submit">
-	</form>
-	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
-	<script src="{{ url_for('static', filename='nav.js') }}"></script>
-	<script>
-		addANav("");
-	</script>
+    <nav>
+        <div id="navdiv"></div>
+    </nav>
+    <form action="/login" method="POST">
+        <label for="username">Call sign:</label>
+        <input type="text" id="username" name="username" value="{{ username }}"><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password"><br>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="submit">
+    </form>
+
+    <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+    <script src="{{ url_for('static', filename='nav.js') }}"></script>
+    <script>
+        addANav("");
+    </script>
 </body>
 </html>
