@@ -3,3 +3,6 @@ static/bulletins.json
 static/app.log
 static/config.json
 /packages/*
+erasedata.py
+app.log
+myop.db

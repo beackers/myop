@@ -1,7 +1,8 @@
-from flask import Flask, render_template, jsonify, request, session, abort, redirect
+from flask import Flask, render_template, jsonify, request, session, abort, redirect, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket, hashlib, json, logging, sqlite3, functools
+import userfunc
 
 
 # -------- SETUP -------- #
@@ -39,8 +40,8 @@ with sqlite3.connect("myop.db") as conn:
             id INTEGER PRIMARY KEY,
             callsign TEXT NOT NULL UNIQUE,
             name TEXT NOT NULL,
-            pwdhash TEXT NOT NULL,
-            permissions TEXT NOT NULL,
+            pwdhash TEXT,
+            permissions INTEGER NOT NULL DEFAULT 0 CHECK (permissions IN (0,1)),
             active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1))
         );
             """)
@@ -82,21 +83,26 @@ except:
     log.exception("Error loading config.json")
 
 # Check if logged in decorator
-def logged_in(route):
+def logged_in(route, permissions="none"):
     @functools.wraps(route)
     def wrapper_logged_in(*args, **kwargs):
-        # for now just worry about the decorator
         with sqlite3.connect("myop.db") as c:
+            c.row_factory = sqlite3.Row
             cur = c.cursor()
             if session.get("user"):
-                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username"),))
-                if not session.get("username") in cur.fetchall():
+                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("user"),))
+                if not session.get("user") in cur.fetchall().get("callsign"):
                     log.debug("user redirected to login")
                     return redirect("/login")
                 else:
-                    log.debug("user passed")
-                    return route(*args, **kwargs)
+                    if cur.fetchall().get["permissions"] == permissions:
+                        log.debug("user passed")
+                        return route(*args, **kwargs)
+                    else:
+                        log.warning("user attempted to access page without proper permissions!")
+                        abort(403)
             else:
+                # return redirect("/login", code=302)
                 log.info("user passed without login")
                 return route(*args, **kwargs)
     return wrapper_logged_in
@@ -141,7 +147,6 @@ def control():
         cur = c.cursor()
         cur.execute("SELECT * FROM users ORDER BY name")
         users = cur.fetchall()
-        log.critical(users)
     return render_template("control.html", csrf=session["csrf"], users=users)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
@@ -177,18 +182,35 @@ def add_user():
         return render_template("add_user.html", csrf=session["csrf"])
     
     newuser = request.form
-    if ("csrf" or "callsign") not in newuser:
+
+    # qualifications
+    if ("csrf" or "callsign" or "permissions") not in newuser:
         log.warning("someone tried to add a new user, but forgot basic deets")
         abort(500)
     if newuser["csrf"] != session["csrf"]: abort(403)
+
     log.debug("/control/user/add: form passed basic qualifications")
-    with sqlite3.connect("myop.db") as c:
-        cur = c.cursor()
-        cur.execute("INSERT INTO users (callsign, name) VALUES ?, ?", (newuser["callsign"], newuser.get("name")))
-        conn.commit()
+    userfunc.new_user(callsign = newuser["callsign"], name = newuser["name"], active = 0, permissions = 0, pwd = newuser["password"])
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
     return redirect("/control", 301)
 
+
+@app.route("/control/user/<int:id>", methods=["GET", "POST", "DELETE"])
+@logged_in
+@needs_csrf
+def view_or_edit_user(id: int):
+    try: user = userfunc.User(id=id)
+    except Exception as e:
+        print(e)
+        abort(500)
+    if request.method == "GET":
+        return render_template("view_user.html", csrf=session["csrf"], user=user)
+    elif request.method == "DELETE":
+        user.delete()
+        return redirect("/control", code=301)
+    else:
+        # update user
+        return redirect("/control", code=301)
 
 
 
@@ -203,21 +225,17 @@ def login():
         u = request.form
         if ("csrf" or "username" or "password")not in u: abort(403)
         if session["csrf"] != u["csrf"]: abort(403)
-        log.debug("login form passed basic qualifications")
         with sqlite3.connect("myop.db") as c:
             cur = c.cursor()
             c.row_factory = sqlite3.Row
             cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
             row = cur.fetchone()
             if row is None:
-                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"].lower()}")
                 abort(403)
             if (row) and (check_password_hash(row[1], u["password"])):
                 session["user"] = row[0]
-                log.info("user logged in!")
                 return redirect("/", code=301)
             else:
-                log.warning(f"someone failed a login!\nusername: {u["username"]}")
                 abort(403)
     elif request.method == "DELETE":
         session["user"] = None
@@ -265,11 +283,9 @@ def bulletinsapipost():
     if not posted or posted != stored:
         abort(403)
     bulletin = request.form
-    log.debug(f"{bulletin=}")
     if not isinstance(bulletin, dict):
         abort(403)
     if ("title" and "expires" and "origin") not in bulletin: abort(403)
-    log.debug("bulletin passed basic qualifications")
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
         cur.execute(
@@ -277,7 +293,6 @@ def bulletinsapipost():
                 (bulletin.get("origin"), bulletin.get("title"), bulletin.get("body"), bulletin.get("timestamp"), bulletin.get("expires"))
                 )
         c.commit()
-    log.debug("Changes commited")
     return redirect("/bulletins"), 301
 
 @app.route("/bulletinsapi", methods=['DELETE'])
@@ -322,17 +337,3 @@ def newMsg(data):
 
     finally:
         emit(dataType, dataToSend, broadcast=True)
-
-
-if __name__ == "__main__":
-    try:
-        websocket.run(app, host="0.0.0.0", port=5000)
-    except Exception as inst:
-        emit("error", {
-            "timestamp": time.asctime(),
-            "title": str(type(inst)),
-            "detail": str(e)
-        })
-        log.error("Something happened!", exc_info=1)
-        pass
-
