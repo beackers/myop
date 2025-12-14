@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
+vice-width, initial-scale=1.0">
+	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+</head>
+<body>
+	<nav>
+		<div id="navdiv"></div>
+	</nav>
+
+	<form action="/control/user/add" method="POST">
+		<label for="callsign">Callsign:</label>
+		<input type="text" id="callsign" name="callsign"><br>
+		<label for="name">Name:</label>
+		<input type="text" id="name" name="name"><br>
+		<label for="permissions">Requested permissions:</label>
+		<select id="permissions" name="permissions">
+			<option value="">none</option>
+			<option value="1">admin</option>
+		</select><br>
+		<input type="hidden" id="password" name="password" placeholder="enter your password">
+		<input type="hidden" name="csrf" value="{{ csrf }}">
+		<button type="submit">Create user</button>
+	</form>
+	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+	<script src="{{ url_for('static', filename='nav.js') }}"></script>
+	<script>
+		addANav();
+	</script>
+</body>
+</html>

@@ -27,7 +27,7 @@ vice-width, initial-scale=1.0">
                     <td>{{ u.callsign }}</td>
                     <td>{{ u.permissions }}</td>
                     <td>
-                        <form action="/control/user/edit/{{ u.id }}" method="get">
+                        <form action="/control/user/{{ u.id }}" method="get">
                             <button type="submit">View</button>
                         </form>
                     </td>
