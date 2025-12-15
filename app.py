@@ -59,7 +59,7 @@ with sqlite3.connect("myop.db") as conn:
 
 
 # Little bit of color never hurt anybody :)
-def coloredText(stuff, colorcode):
+def coloredText(text, code):
     return f"\033[{code}m{text}\033[0m"
 
 
@@ -83,28 +83,23 @@ except:
     log.exception("Error loading config.json")
 
 # Check if logged in decorator
-def logged_in(route, permissions="none"):
+def logged_in(route, permissions=0):
     @functools.wraps(route)
     def wrapper_logged_in(*args, **kwargs):
-        with sqlite3.connect("myop.db") as c:
-            c.row_factory = sqlite3.Row
-            cur = c.cursor()
-            if session.get("user"):
-                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("user"),))
-                if not session.get("user") in cur.fetchall().get("callsign"):
-                    log.debug("user redirected to login")
-                    return redirect("/login")
-                else:
-                    if cur.fetchall().get["permissions"] == permissions:
-                        log.debug("user passed")
-                        return route(*args, **kwargs)
-                    else:
-                        log.warning("user attempted to access page without proper permissions!")
-                        abort(403)
-            else:
-                # return redirect("/login", code=302)
-                log.info("user passed without login")
+        if session.get("user"):
+            user = userfunc.User(session["user"])
+            if user.active and (user.permissions >= permissions):
                 return route(*args, **kwargs)
+            else:
+                log.warning("Someone just tried to access a page, but wasn't active or didn't have permissions")
+                if not user.active:
+                    abort(403, "User's account is not active. If it should be, contact an administrator.")
+                elif not user.permissions >= permissions:
+                    abort(403, "User's account doesn't have the right permissions. If you should, contact an administrator.")
+        else:
+            # return redirect("/login", code=301)
+            log.info("user passed without login")
+            return route(*args, **kwargs)
     return wrapper_logged_in
 
 # csrf checking
@@ -207,9 +202,22 @@ def view_or_edit_user(id: int):
         return render_template("view_user.html", csrf=session["csrf"], user=user)
     elif request.method == "DELETE":
         user.delete()
-        return redirect("/control", code=301)
-    else:
-        # update user
+        return jsonify({"status": 200}), 200
+    elif request.method == "POST":
+        if session["csrf"] != request.form["csrf"]: abort(403)
+        f = request.form
+        print(f)
+        if f.get("active"):
+            active = 1
+        else:
+            active = 0
+        permissions = int(f.get("permissions"))
+        user.edit(
+                name=f.get("name"),
+                permissions=permissions,
+                callsign=f.get("callsign"),
+                active=active
+                )
         return redirect("/control", code=301)
 
 

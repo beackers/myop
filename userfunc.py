@@ -30,6 +30,7 @@ class User:
             self.permissions = True
         else:
             self.permissions = None
+        self.active = bool(row["active"])
         return None
 
 

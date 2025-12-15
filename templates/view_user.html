@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
+	<title>MyOp - viewing user</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=de
 vice-width, initial-scale=1.0">
 	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
 </head>
@@ -17,18 +19,16 @@ vice-width, initial-scale=1.0">
 		<input type="text" id="name" name="name" value="{{ user.name }}"><br>
 		<label for="permissions">Requested permissions:</label>
 		<select id="permissions" name="permissions">
-			<option value="" {% if user.permissions == 0 %}selected{% endif %}>none</option>
+			<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
 			<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
 		</select><br>
 		<input type="hidden" id="password" name="password" placeholder="enter password"><br>
 		<label for="active">Active user?</label>
-		<input {% if user.active %}checked{% endif %} type="checkbox" name="active">
+		<input {% if user.active %}checked{% endif %} type="checkbox" name="active"><br>
 		<input type="hidden" name="csrf" value="{{ csrf }}">
-		<button type="submit">Update user</button>
+		<button type="submit">Update user</button><br>
 	</form>
-	<form action="/control/user/{{ user.id }}" method="DELETE">
-		<button type="submit">Delete user</button>
-	</form>
+	<button onclick="deleteUser()">Delete user</button>
 	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
@@ -42,6 +42,10 @@ vice-width, initial-scale=1.0">
 				pwd.type = "hidden";
 			}
 		});
+		function deleteUser() {
+			fetch(window.location.pathname, {method: "DELETE"});
+			window.location.pathname = "/control";
+		}
 	</script>
 </body>
 </html>

@@ -2,11 +2,12 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DispatchZero</title>
+    <title>MyOp - Chat</title>
     <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
 </head>
 <body>
 <div id="everything">
+    <div id="navdiv"></div>
     <div id="chat"></div>
     <div id="msgBox">
         <input id="msg" type="text" placeholder="Type message...">
@@ -33,7 +34,9 @@
     </div>
 </div>
 
+    <script src="{{ url_for('static', filename='nav.js') }}"></script>
     <script>
+        addANav();
         var socket = io();
         socket.on("message", function(data) {
             var chat = document.getElementById("chat");
