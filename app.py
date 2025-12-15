@@ -12,6 +12,13 @@ app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
 websocket = SocketIO(app)
 
+
+
+# Little bit of color never hurt anybody :)
+def coloredText(text, code):
+    return f"\033[{code}m{text}\033[0m"
+
+
 # Logging
 def startLogger():
     log = logging.getLogger(__name__)
@@ -29,7 +36,7 @@ def startLogger():
 
 log = startLogger()
 log.info("System check starting.")
-log.info("Secret key generated!")
+log.info(coloredText("Secret key generated!", "34"))
 
 
 # Database
@@ -56,12 +63,7 @@ with sqlite3.connect("myop.db") as conn:
         )
             """)
     conn.commit()
-log.info("Database is online and ready")
-
-
-# Little bit of color never hurt anybody :)
-def coloredText(text, code):
-    return f"\033[{code}m{text}\033[0m"
+log.info(coloredText("Database is online and ready", "34"))
 
 
 # Set up files
@@ -82,7 +84,7 @@ except:
                 }
         json.dump(data, file)
     log.exception("Error loading config.json")
-log.info("Configuration file is online and ready")
+log.info(coloredText("Configuration file is online and ready", "34"))
 
 # Check if logged in decorator
 def logged_in(permissions=0):
@@ -117,7 +119,7 @@ def needs_csrf(route):
             session["csrf"] = secrets.token_hex(16)
             return route(*args, **kwargs)
     return wrapper_csrf
-log.info("Key functions defined")
+log.info(coloredText("Key functions defined", "34"))
 
 
 # ------------ APP ------------- #
