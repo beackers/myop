@@ -10,7 +10,6 @@ import userfunc
 # App + WebSocket
 app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
-key = hashlib.sha256(app.config["SECRET_KEY"].encode("utf-8")).hexdigest()
 websocket = SocketIO(app)
 
 # Logging
@@ -29,7 +28,8 @@ def startLogger():
     return log
 
 log = startLogger()
-log.info(f"Secret key generated! Hash: {key}")
+log.info("System check starting.")
+log.info("Secret key generated!")
 
 
 # Database
@@ -56,6 +56,7 @@ with sqlite3.connect("myop.db") as conn:
         )
             """)
     conn.commit()
+log.info("Database is online and ready")
 
 
 # Little bit of color never hurt anybody :)
@@ -81,26 +82,30 @@ except:
                 }
         json.dump(data, file)
     log.exception("Error loading config.json")
+log.info("Configuration file is online and ready")
 
 # Check if logged in decorator
-def logged_in(route, permissions=0):
-    @functools.wraps(route)
-    def wrapper_logged_in(*args, **kwargs):
-        if session.get("user"):
-            user = userfunc.User(session["user"])
-            if user.active and (user.permissions >= permissions):
-                return route(*args, **kwargs)
+def logged_in(permissions=0):
+    def wrapper(route):
+        @functools.wraps(route)
+        def wrapper_logged_in(*args, **kwargs):
+            if session.get("user"):
+                user = userfunc.User(session["user"])
+                if user.active and (user.permissions >= permissions):
+                    return route(*args, **kwargs)
+                else:
+                    log.warning("Someone just tried to access a page, but wasn't active or didn't have permissions")
+                    if not user.active:
+                        abort(403, "User's account is not active. If it should be, contact an administrator.")
+                    elif not user.permissions >= permissions:
+                        abort(403, "User's account doesn't have the right permissions. If you should, contact an administrator.")
             else:
-                log.warning("Someone just tried to access a page, but wasn't active or didn't have permissions")
-                if not user.active:
-                    abort(403, "User's account is not active. If it should be, contact an administrator.")
-                elif not user.permissions >= permissions:
-                    abort(403, "User's account doesn't have the right permissions. If you should, contact an administrator.")
-        else:
-            # return redirect("/login", code=301)
-            log.info("user passed without login")
-            return route(*args, **kwargs)
-    return wrapper_logged_in
+                # for not-logged-in people
+                # return redirect("/login", code=301)
+                log.info("user passed without login")
+                return route(*args, **kwargs)
+        return wrapper_logged_in
+    return wrapper
 
 # csrf checking
 def needs_csrf(route):
@@ -112,20 +117,21 @@ def needs_csrf(route):
             session["csrf"] = secrets.token_hex(16)
             return route(*args, **kwargs)
     return wrapper_csrf
+log.info("Key functions defined")
 
 
 # ------------ APP ------------- #
 
 # Misc. routes
 @app.route("/")
-@logged_in
+@logged_in()
 def main():
     with open("static/config.json", "r") as f:
         title = json.load(f)["title"]
     return render_template("main.html", title=title)
 
 @app.route("/log")
-@logged_in
+@logged_in()
 def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
@@ -134,7 +140,7 @@ def showlog():
 # ======== Control Panel ======== #
 
 @app.route("/control", methods=['GET'])
-@logged_in
+@logged_in(1)
 @needs_csrf
 def control():
     with sqlite3.connect("myop.db") as c:
@@ -145,7 +151,7 @@ def control():
     return render_template("control.html", csrf=session["csrf"], users=users)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
-@logged_in
+@logged_in(1)
 def controlapi():
     if request.method == "GET":
         with open('static/config.json', "r") as file:
@@ -170,7 +176,7 @@ def controlapi():
 
 
 @app.route("/control/user/add", methods=["GET", "POST"])
-@logged_in
+@logged_in(1)
 @needs_csrf
 def add_user():
     if request.method == "GET":
@@ -191,7 +197,7 @@ def add_user():
 
 
 @app.route("/control/user/<int:id>", methods=["GET", "POST", "DELETE"])
-@logged_in
+@logged_in(1)
 @needs_csrf
 def view_or_edit_user(id: int):
     try: user = userfunc.User(id=id)
@@ -255,7 +261,7 @@ def login():
 # ======== Bulletins ======== #
 
 @app.route("/bulletins", methods=['GET'])
-@logged_in
+@logged_in()
 @needs_csrf
 def bulletins():
     with open("static/config.json", "r") as f:
@@ -284,7 +290,7 @@ def bulletinsapiget():
     return jsonify(data), 200
 
 @app.route("/bulletinsapi", methods=["POST"])
-@logged_in
+@logged_in()
 def bulletinsapipost():
     posted = request.form.get("csrf")
     stored = session.get("csrf")
@@ -304,7 +310,7 @@ def bulletinsapipost():
     return redirect("/bulletins"), 301
 
 @app.route("/bulletinsapi", methods=['DELETE'])
-@logged_in
+@logged_in()
 def bulletinsapidelete():
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
@@ -317,7 +323,7 @@ def bulletinsapidelete():
 # ======== Chat Stuff ========== #
 
 @app.route("/chat", methods=['GET'])
-@logged_in
+@logged_in()
 def chat():
     with open("static/config.json", "r") as f:
         config = json.load(f)
