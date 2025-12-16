@@ -92,6 +92,7 @@ def logged_in(permissions=0):
         @functools.wraps(route)
         def wrapper_logged_in(*args, **kwargs):
             if session.get("user") == "BOOTSTRAP_ADMIN":
+                log.info("Bootstrap admin is accessing page:")
                 return route(*args, **kwargs)
             if session.get("user"):
                 user = userfunc.User(session["user"])
@@ -134,7 +135,7 @@ log.info(coloredText("Key functions defined", "34"))
 if not admin_exists():
     BOOTSTRAP_ADMIN = {
             "callsign": "BOOTSTRAP_ADMIN",
-            "pwdhash": generate_password_hash("easy"),
+            "pwdhash": generate_password_hash("bootstrapbill"),
             "active": 1,
             "permissions": 1,
             "name": None
@@ -223,6 +224,9 @@ def add_user():
             permissions = newuser["permissions"],
             pwd = newuser["password"]
             )
+    if newuser["permissions"] == 1 and admin_exists() and BOOTSTRAP_ADMIN:
+        BOOTSTRAP_ADMIN = None
+        session.clear()
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
     return redirect("/control", 301)
 
