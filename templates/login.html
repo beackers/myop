@@ -31,12 +31,27 @@
 
     {% else %}
     <h2>You're logged in already</h2>
-    <h3>Your callsign: {{loggedinas}}</h3>
+    <h3>Your callsign: {{loggedinas}}</h3><br>
+    <button onclick="logout();">log out</button>
     {% endif %}
     <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
     <script src="{{ url_for('static', filename='nav.js') }}"></script>
     <script>
         addANav("");
+	async function logout() {
+		const response = await fetch(window.location.pathname, {
+			method: "DELETE",
+			headers: {"CSRF": "{{ csrf }}"}
+		});
+		if (response.ok) {
+			window.location.href = "/login";
+		} else {
+			msg = await response.text();
+			alert(`There were problems logging you out.
+			${response.status}
+			${msg}`);
+		}
+	}
     </script>
 </body>
 </html>

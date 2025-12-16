@@ -13,24 +13,6 @@
         <input id="msg" type="text" placeholder="Type message...">
         <button onclick="sendMessage()" id="sendMsgButton">&#9166</button>
         <br>
-        <select name="user" id="username">
-            <optgroup label="Base">
-                <option value="base_1">Base 1</option>
-                <option value="base_2">Base 2</option>
-                <option value="base_dispatch">Base Dispatcher</option>
-            </optgroup>
-            <optgroup label="Mobile">
-                <option value="sienna_1">Sienna</option>
-                <option value="camry_1">Camry</option>
-                <option value="prius_1">Prius</option>
-                <option value="truck_1">Truck</option>
-            </optgroup>
-            <optgroup label="Radio Operator">
-                <option value="ares_1">ARES</option>
-                <option value="skywarn_1">SKYWARN</option>
-            </optgroup>
-            <option value="DISPATCH-MAIN">Main Dispatch</option>
-        </select>
     </div>
 </div>
 
@@ -49,9 +31,8 @@
         });
         function sendMessage() {
             var input = document.getElementById("msg");
-            var un = document.getElementById("username");
             socket.emit("message", {
-                username: un.value,
+                username: "{{ callsign }}",
                 msg: input.value
             });
             input.value = '';

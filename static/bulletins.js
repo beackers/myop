@@ -36,8 +36,9 @@ async function loadBulletins() {
 
         const ts = new Date(b.timestamp).toLocaleString();
         const exp = b.expires ? new Date(b.expires).toLocaleString() : "N/A";
+	const origin = b.origin || "unknown origin"
 
-        meta.textContent = `Posted: ${ts} | Expires: ${exp}`;
+        meta.textContent = `Posted: ${ts} | Expires: ${exp}\nOriginating station: ${origin}`;
 
         div.appendChild(title);
         div.appendChild(body);

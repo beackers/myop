@@ -22,6 +22,12 @@ vice-width, initial-scale=1.0">
 			<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
 			<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
 		</select><br>
+		{% if user.pwdhash %}
+		<p>User has password<br>
+		{{ user.pwdhash }}</p>
+		{% else %}
+		<p>User doesn't have a password set</p>
+		{% endif %}
 		<input type="{{ 'text' if user.permissions == 1 else 'hidden'}}" id="password" name="password" placeholder="enter password"><br>
 		<label for="active">Active user?</label>
 		<input {% if user.active %}checked{% endif %} type="checkbox" name="active"><br>
@@ -40,10 +46,10 @@ vice-width, initial-scale=1.0">
 		}
 		sel.addEventListener("change", syncPwdField)
 		syncPwdField();
-		function deleteUser() {
+		async function deleteUser() {
 			const response = await fetch(window.location.pathname, {
 				method: "DELETE",
-				headers: {"X-CSRF": "{{ csrf }}"}
+				headers: {"CSRF": "{{ csrf }}"}
 			}
 			);
 			msg = await response.text();

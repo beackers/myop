@@ -16,11 +16,15 @@
                 <summary>post new bulletin</summary>
                 <form action="/bulletinsapi" method="post" enctype="multipart/form-data">
                         <input name="title" type="text" placeholder="title">
-			<textarea name="body" placeholder="body"></textarea>
+			<textarea name="body" placeholder="body"></textarea><br>
+			<select name="expires">
+				<option value=0>Never</option>
+				<option value=30>30 minutes</option>
+				<option value=60 selected>1 hr</option>
+				<option value=120>2 hr</option>
+			</select>
                         <input type="hidden" name="csrf" value="{{ csrf }}">
-			<input type="hidden" name="origin" value="{{ uname }}">
-			<input type="hidden" name="timestamp" value="None">
-                        <input type="submit">
+			<button type="submit">post</button>
                 </form>
         </details>
 

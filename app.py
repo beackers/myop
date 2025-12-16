@@ -219,7 +219,7 @@ def add_user():
     userfunc.new_user(
             callsign = newuser["callsign"].lower(),
             name = newuser["name"],
-            active = 0,
+            active = 1,
             permissions = newuser["permissions"],
             pwd = newuser["password"]
             )
@@ -241,6 +241,8 @@ def view_or_edit_user(id: int):
         if user.permissions == 1 and admin_exists() == 1:
             log.critical("Last active admin was almost deleted!")
             abort(409, "cannot delete last admin")
+        if request.headers.get("csrf") != session["csrf"]:
+            abort(403, "CSRF token didn't match")
         user.delete()
         return jsonify({"status": 200}), 200
     elif request.method == "POST":
@@ -267,7 +269,7 @@ def view_or_edit_user(id: int):
 
 # --------- LOGIN ---------- #
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET", "POST", "DELETE"])
 @needs_csrf
 def login():
     if request.method == "GET":
@@ -298,7 +300,10 @@ def login():
         except:
             log.info("someone tried to log in with a username that doesn't exist")
             abort(400)
-        if user and (check_password_hash(user.pwdhash, u["password"])):
+        if user.pwdhash and (check_password_hash(user.pwdhash, u["password"])):
+            session["user"] = user.callsign
+            return redirect("/", code=301)
+        elif not user.pwdhash:
             session["user"] = user.callsign
             return redirect("/", code=301)
         else:
@@ -306,8 +311,8 @@ def login():
             abort(403)
 
     elif request.method == "DELETE":
-        session["user"] = None
-        return redirect("/login", code=301)
+        session.clear()
+        return jsonify({"status": 200})
 
 
 
@@ -324,9 +329,10 @@ def bulletins():
     return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
-@logged_in
+@logged_in()
 def bulletinsapiget():
     with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
         cur = c.cursor()
         cur.execute("SELECT * FROM bulletins")
         b = cur.fetchall()
@@ -335,11 +341,11 @@ def bulletinsapiget():
             }
     for bulletin in b:
         data["bulletins"].append({
-            "origin": bulletin[1],
-            "title": bulletin[2],
-            "body": bulletin[3],
-            "timestamp": bulletin[4],
-            "expires": bulletin[5]
+            "origin": bulletin["origin"],
+            "title": bulletin["title"],
+            "body": bulletin["body"],
+            "timestamp": bulletin["timestamp"],
+            "expires": bulletin["expires"]
         })
     return jsonify(data), 200
 
@@ -349,16 +355,23 @@ def bulletinsapipost():
     posted = request.form.get("csrf")
     stored = session.get("csrf")
     if not posted or posted != stored:
-        abort(403)
+        abort(403, "CSRF didn't match. Try reloading the page.")
     bulletin = request.form
     if not isinstance(bulletin, dict):
-        abort(403)
-    if ("title" and "expires" and "origin") not in bulletin: abort(403)
+        abort(403, "Bulletin must be in the form of a dictionary. Contact administrators.")
+    if "title" not in bulletin or "expires" not in bulletin:
+        abort(403, "bulletin must have a title and expiration time. Revise the bulletin.")
+    expires = bulletin["expires"]
+    expires = (time.time() + (int(expires)*60))*1000
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
         cur.execute(
                 "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
-                (bulletin.get("origin"), bulletin.get("title"), bulletin.get("body"), bulletin.get("timestamp"), bulletin.get("expires"))
+                (session["user"],
+                 bulletin.get("title"),
+                 bulletin.get("body"),
+                 time.time()*1000,
+                 expires)
                 )
         c.commit()
     return redirect("/bulletins"), 301
@@ -382,12 +395,12 @@ def chat():
     with open("static/config.json", "r") as f:
         config = json.load(f)
         if not config.get("services").get("chat"): return render_template("disabled.html"), 403
-    return render_template("chat.html")
+    return render_template("chat.html", callsign = session["user"])
 
 @websocket.on("message")
 def newMsg(data):
     try:
-        print("New Message:" + data.get("msg", " "))
+        print(f"New Message: {data.get("msg", " ")}\nFrom station: {data.get("username")}")
         dataToSend = {
             "timestamp": time.asctime(),
             "username": data.get("username", "unknown"),
