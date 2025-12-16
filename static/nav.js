@@ -72,9 +72,7 @@ function addANav() {
 
     sel.addEventListener("change", () => {
         if (sel.value !== current) {
-            const clean = window.DOMPurify
-                ? DOMPurify.sanitize(sel.value)
-                : sel.value;
+            const clean = DOMPurify.sanitize(sel.value);
             window.location.href = clean;
         };
     });
