@@ -277,7 +277,7 @@ def view_or_edit_user(id: int):
 @needs_csrf
 def login():
     if request.method == "GET":
-        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"], loggedinas=session.get("user"))
+        return render_template("login.html", csrf=session["csrf"], loggedinas=session.get("user"))
 
     elif request.method == "POST":
         u = request.form
@@ -303,7 +303,8 @@ def login():
             user = userfunc.User(u["username"].lower())
         except:
             log.info("someone tried to log in with a username that doesn't exist")
-            abort(400)
+            flash("That callsign doesn't exist.\nIf it should, contact an admin.")
+            return redirect('/login', code=301)
         if user.pwdhash and (check_password_hash(user.pwdhash, u["password"])):
             session["user"] = user.callsign
             return redirect("/", code=301)
@@ -312,7 +313,8 @@ def login():
             return redirect("/", code=301)
         else:
             log.info("someone attempted login with a wrong password")
-            abort(403)
+            flash("That password didn't match, can you try that again?")
+            return redirect('/login', code=301)
 
     elif request.method == "DELETE":
         session.clear()
