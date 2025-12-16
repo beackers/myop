@@ -105,9 +105,8 @@ def logged_in(permissions=0):
                         abort(403, "User's account doesn't have the right permissions. If you should, contact an administrator.")
             else:
                 # for not-logged-in people
-                # return redirect("/login", code=301)
-                log.info("user passed without login")
-                return route(*args, **kwargs)
+                flash("please log in before continuing")
+                return redirect("/login", code=301)
         return wrapper_logged_in
     return wrapper
 

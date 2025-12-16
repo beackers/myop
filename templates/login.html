@@ -10,6 +10,15 @@
     <nav>
         <div id="navdiv"></div>
     </nav>
+    {% with msgs = get_flashed_messages() %}
+    {% if messages %}
+    {% for msg in msgs %}
+    <div class="flashes">
+	    <p>{{ msg }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
     {% if not loggedinas %}
     <form action="/login" method="POST">
         <label for="username">Call sign:</label>
