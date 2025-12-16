@@ -49,7 +49,10 @@ class User:
             cur = c.cursor()
             attr = []
             for key in kwargs.keys():
-                attr.append(f"{key} = '{kwargs[key]}'")
+                if key != "pwdhash":
+                    attr.append(f"{key} = '{kwargs[key]}'")
+                else:
+                    attr.append(f"{key} = '{generate_password_hash(kwargs["pwdhash"])}'")
             attr = ", ".join(attr)
             cur.execute(
                     f"UPDATE users SET {attr} WHERE id = ?",
@@ -57,6 +60,14 @@ class User:
                     )
             c.commit()
             self.__init__(id=self.id)
+
+    def set_new_password(self, newpwd: str):
+        newpwd = generate_password_hash(newpwd)
+        with sqlite3.connect("myop.db") as c:
+            cur = c.cursor()
+            cur.execute("UPDATE users SET pwdhash = ? WHERE id = ?;", (newpwd, self.id))
+            c.commit()
+        return User(id=self.id)
 
 def new_user(callsign: str, name: str=None, permissions: int=0, active: int=0, pwd: str=None):
     with sqlite3.connect("myop.db") as c:

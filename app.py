@@ -91,6 +91,8 @@ def logged_in(permissions=0):
     def wrapper(route):
         @functools.wraps(route)
         def wrapper_logged_in(*args, **kwargs):
+            if session.get("user") == "BOOTSTRAP_ADMIN":
+                return route(*args, **kwargs)
             if session.get("user"):
                 user = userfunc.User(session["user"])
                 if user.active and (user.permissions >= permissions):
@@ -119,7 +121,28 @@ def needs_csrf(route):
             session["csrf"] = secrets.token_hex(16)
             return route(*args, **kwargs)
     return wrapper_csrf
+
+def admin_exists():
+    with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
+        cur = c.cursor()
+        cur.execute("SELECT * FROM users WHERE permissions = 1;")
+        return len(cur.fetchall())
+
+
 log.info(coloredText("Key functions defined", "34"))
+
+if not admin_exists():
+    BOOTSTRAP_ADMIN = {
+            "callsign": "BOOTSTRAP_ADMIN",
+            "pwdhash": generate_password_hash("easy"),
+            "active": 1,
+            "permissions": 1,
+            "name": None
+            }
+else:
+    BOOTSTRAP_ADMIN = None
+
 
 
 # ------------ APP ------------- #
@@ -137,7 +160,6 @@ def main():
 def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
-
 
 # ======== Control Panel ======== #
 
@@ -187,13 +209,21 @@ def add_user():
     newuser = request.form
 
     # qualifications
-    if ("csrf" or "callsign" or "permissions") not in newuser:
+    if "csrf" not in newuser or "callsign" not in newuser or "permissions" not in newuser:
         log.warning("someone tried to add a new user, but forgot basic deets")
         abort(500)
-    if newuser["csrf"] != session["csrf"]: abort(403)
+    if newuser["csrf"] != session["csrf"]:
+        log.warning("/control/user/add: CSRF didn't match")
+        abort(403)
 
     log.debug("/control/user/add: form passed basic qualifications")
-    userfunc.new_user(callsign = newuser["callsign"], name = newuser["name"], active = 0, permissions = 0, pwd = newuser["password"])
+    userfunc.new_user(
+            callsign = newuser["callsign"].lower(),
+            name = newuser["name"],
+            active = 0,
+            permissions = newuser["permissions"],
+            pwd = newuser["password"]
+            )
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
     return redirect("/control", 301)
 
@@ -209,50 +239,73 @@ def view_or_edit_user(id: int):
     if request.method == "GET":
         return render_template("view_user.html", csrf=session["csrf"], user=user)
     elif request.method == "DELETE":
+        if user.permissions == 1 and admin_exists() == 1:
+            log.critical("Last active admin was almost deleted!")
+            abort(409, "cannot delete last admin")
         user.delete()
         return jsonify({"status": 200}), 200
     elif request.method == "POST":
         if session["csrf"] != request.form["csrf"]: abort(403)
         f = request.form
-        print(f)
         if f.get("active"):
             active = 1
         else:
             active = 0
+        if active == 0 and user.permissions == 1 and admin_exists() == 1:
+            log.critical("Nearly deactivated last admin!")
+            abort(409, "cannot deactivate last admin")
         permissions = int(f.get("permissions"))
         user.edit(
                 name=f.get("name"),
                 permissions=permissions,
-                callsign=f.get("callsign"),
+                callsign=f.get("callsign").lower(),
                 active=active
                 )
+        if f.get("password"):
+            user.set_new_password(f["password"])
         return redirect("/control", code=301)
 
 
+# --------- LOGIN ---------- #
 
-# The actual login page
-# Pro tip: no @logged_in (for obvious reasons)
 @app.route("/login", methods=["GET", "POST"])
 @needs_csrf
 def login():
     if request.method == "GET":
-        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"])
+        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"], loggedinas=session.get("user"))
+
     elif request.method == "POST":
         u = request.form
-        if ("csrf" or "username" or "password")not in u: abort(403)
-        if session["csrf"] != u["csrf"]: abort(403)
-        with sqlite3.connect("myop.db") as c:
-            cur = c.cursor()
-            c.row_factory = sqlite3.Row
-            cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
-            row = cur.fetchone()
-            if row is None:
-                abort(403)
-            if (row) and (check_password_hash(row[1], u["password"])):
-                session["user"] = row[0]
-                return redirect("/", code=301)
+        # check csrf, un exist
+        if "csrf"  not in u or "username" not in u:
+            log.info("/login: request didn't pass BQ")
+            abort(403)
+        if session["csrf"] != u["csrf"]:
+            log.info("/login: CSRF didn't match")
+            abort(403)
+
+        # bootstrap operation
+        if BOOTSTRAP_ADMIN and u["username"] == BOOTSTRAP_ADMIN["callsign"] and not admin_exists():
+            if check_password_hash(BOOTSTRAP_ADMIN["pwdhash"], u["password"]):
+                session["user"] = "BOOTSTRAP_ADMIN"
+                return redirect("/control/user/add", 301)
             else:
+                log.info("someone just tried to log in as bootstrap admin")
                 abort(403)
+
+        # normal user
+        try:
+            user = userfunc.User(u["username"].lower())
+        except:
+            log.info("someone tried to log in with a username that doesn't exist")
+            abort(400)
+        if user and (check_password_hash(user.pwdhash, u["password"])):
+            session["user"] = user.callsign
+            return redirect("/", code=301)
+        else:
+            log.info("someone attempted login with a wrong password")
+            abort(403)
+
     elif request.method == "DELETE":
         session["user"] = None
         return redirect("/login", code=301)
