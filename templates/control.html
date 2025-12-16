@@ -19,14 +19,12 @@
             <tr style="background-color: gray;">
                 <td>Name</td>
                 <td>Callsign</td>
-                <td>Permissions</td>
                 <td>Edit Link</td>
             </tr>
 	    {% for u in users%}
                 <tr>
                     <td>{{ u.name }}</td>
                     <td>{{ u.callsign }}</td>
-                    <td>{{ u.permissions }}</td>
                     <td>
                         <form action="/control/user/{{ u.id }}" method="get">
                             <button type="submit">View</button>
