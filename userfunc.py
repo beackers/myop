@@ -75,7 +75,6 @@ def new_user(callsign: str, name: str=None, permissions: int=0, active: int=0, p
         cur = c.cursor()
         if pwd:
             pwd = generate_password_hash(pwd)
-        print(callsign, name, permissions, active, pwd)
         cur.execute("""
         INSERT INTO users (callsign, name, permissions, pwdhash, active) VALUES (?,?,?,?,?);
         """,
