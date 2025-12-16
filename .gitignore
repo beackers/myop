@@ -4,4 +4,4 @@ static/app.log
 static/config.json
 /packages/*
 erasedata.py
-*.db
+/*.db
