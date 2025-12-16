@@ -4,11 +4,17 @@ function addANav() {
     // change / add websites here!
     const navData = [
     {
-        label: "THIS OP",
+        label: "tools",
         items: [
             { label: "home", value: "/" },
-            { label: "BULLETINS", value: "/bulletins" },
-            { label: "CHAT", value: "/chat"}
+            { label: "bulletin board", value: "/bulletins" },
+            { label: "chat", value: "/chat"}
+        ]
+    },
+    {
+        label: "you",
+        items: [
+            { label: "login", value: "/login" }
         ]
     },
     {
