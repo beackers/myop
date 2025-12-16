@@ -238,27 +238,27 @@ def view_or_edit_user(id: int):
     try: user = userfunc.User(id=id)
     except Exception as e:
         print(e)
-        abort(500)
+        return e, 500
     if request.method == "GET":
         return render_template("view_user.html", csrf=session["csrf"], user=user)
     elif request.method == "DELETE":
         if user.permissions == 1 and admin_exists() == 1:
             log.critical("Last active admin was almost deleted!")
-            abort(409, "cannot delete last admin")
+            return "cannot delete last admin", 409
         if request.headers.get("csrf") != session["csrf"]:
-            abort(403, "CSRF token didn't match")
+            return "CSRF token didn't match", 403
         user.delete()
         return jsonify({"status": 200}), 200
     elif request.method == "POST":
-        if session["csrf"] != request.form["csrf"]: abort(403)
-        f = request.form
-        if f.get("active"):
-            active = 1
-        else:
-            active = 0
+        f = request.get_json()
+        if session["csrf"] != f["csrf"]: return "CSRF token doesn't match. Try reloading.", 409
+        active = int(f["active"])
         if active == 0 and user.permissions == 1 and admin_exists() == 1:
             log.critical("Nearly deactivated last admin!")
-            abort(409, "cannot deactivate last admin")
+            return "cannot deactivate last admin", 409
+        if user.permissions == 1 and admin_exists() == 1 and int(f.get("permissions")) == 0:
+            log.critical("Nearly locked all users out of control panel!")
+            return "cannot change last admin to normal user", 409
         permissions = int(f.get("permissions"))
         user.edit(
                 name=f.get("name"),
