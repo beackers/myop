@@ -10,6 +10,7 @@
     <nav>
         <div id="navdiv"></div>
     </nav>
+    {% if not loggedinas %}
     <form action="/login" method="POST">
         <label for="username">Call sign:</label>
         <input type="text" id="username" name="username" value="{{ username }}"><br>
@@ -19,6 +20,10 @@
         <input type="submit">
     </form>
 
+    {% else %}
+    <h2>You're logged in already</h2>
+    <h3>Your callsign: {{loggedinas}}</h3>
+    {% endif %}
     <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
     <script src="{{ url_for('static', filename='nav.js') }}"></script>
     <script>

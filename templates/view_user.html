@@ -22,7 +22,7 @@ vice-width, initial-scale=1.0">
 			<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
 			<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
 		</select><br>
-		<input type="hidden" id="password" name="password" placeholder="enter password"><br>
+		<input type="{{ 'text' if user.permissions == 1 else 'hidden'}}" id="password" name="password" placeholder="enter password"><br>
 		<label for="active">Active user?</label>
 		<input {% if user.active %}checked{% endif %} type="checkbox" name="active"><br>
 		<input type="hidden" name="csrf" value="{{ csrf }}">
@@ -34,17 +34,28 @@ vice-width, initial-scale=1.0">
 	<script>
 		addANav();
 		const sel = document.getElementById("permissions");
-		sel.addEventListener("change", () => {
-			const pwd = document.getElementById("password");
-			if (sel.value === "admin") {
-				pwd.type = "text";
-			} else {
-				pwd.type = "hidden";
-			}
-		});
+		const pwd = document.getElementById("password")
+		function syncPwdField() {
+			pwd.type = (sel.value === "1") ? "text" : "hidden";
+		}
+		sel.addEventListener("change", syncPwdField)
+		syncPwdField();
 		function deleteUser() {
-			fetch(window.location.pathname, {method: "DELETE"});
-			window.location.pathname = "/control";
+			const response = await fetch(window.location.pathname, {
+				method: "DELETE",
+				headers: {"X-CSRF": "{{ csrf }}"}
+			}
+			);
+			msg = await response.text();
+			if (response.ok) {
+				window.location.href = "/control";
+			} else if (response.status === 409) {
+				alert("She's real fine, my 409...\nYou can't delete this user as it's the last admin user. Delete the database file instead.");
+			} else if (response.status === 403) {
+				alert("403, eyes on me...\nYou don't have permission to delete this person!");
+			} else {
+				alert(`There was something strange going on. We didn't account for it, but here it is:\n${response.status}\n${msg}`);
+			}
 		}
 	</script>
 </body>

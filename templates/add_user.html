@@ -29,6 +29,15 @@
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
 		addANav();
+		const sel = document.getElementById("permissions");
+		sel.addEventListener("change", () => {
+			const pwd = document.getElementById("password");
+			if (sel.value === "") {
+				pwd.type = "hidden";
+			} else if (sel.value === "1") {
+				pwd.type = "text";
+			}
+		});
 	</script>
 </body>
 </html>
