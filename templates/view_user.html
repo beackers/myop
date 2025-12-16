@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>MyOp - viewing user</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=de
+vice-width, initial-scale=1.0">
+	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+</head>
+<body>
+	<nav>
+		<div id="navdiv"></div>
+	</nav>
+
+	<form action="/control/user/{{ user.id }}" method="POST">
+		<label for="callsign">Callsign:</label>
+		<input type="text" id="callsign" name="callsign" value="{{ user.callsign }}"><br>
+		<label for="name">Name:</label>
+		<input type="text" id="name" name="name" value="{{ user.name }}"><br>
+		<label for="permissions">Requested permissions:</label>
+		<select id="permissions" name="permissions">
+			<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
+			<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
+		</select><br>
+		{% if user.pwdhash %}
+		<p>User has password<br>
+		{{ user.pwdhash }}</p>
+		{% else %}
+		<p>User doesn't have a password set</p>
+		{% endif %}
+		<input type="{{ 'text' if user.permissions == 1 else 'hidden'}}" id="password" name="password" placeholder="enter password"><br>
+		<label for="active">Active user?</label>
+		<input {% if user.active %}checked{% endif %} type="checkbox" name="active"><br>
+		<input type="hidden" name="csrf" value="{{ csrf }}">
+		<button type="submit">Update user</button><br>
+	</form>
+	<button onclick="deleteUser()">Delete user</button>
+	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+	<script src="{{ url_for('static', filename='nav.js') }}"></script>
+	<script>
+		addANav();
+		const sel = document.getElementById("permissions");
+		const pwd = document.getElementById("password")
+		function syncPwdField() {
+			pwd.type = (sel.value === "1") ? "text" : "hidden";
+		}
+		sel.addEventListener("change", syncPwdField)
+		syncPwdField();
+		async function deleteUser() {
+			const response = await fetch(window.location.pathname, {
+				method: "DELETE",
+				headers: {"CSRF": "{{ csrf }}"}
+			}
+			);
+			msg = await response.text();
+			if (response.ok) {
+				window.location.href = "/control";
+			} else if (response.status === 409) {
+				alert("She's real fine, my 409...\nYou can't delete this user as it's the last admin user. Delete the database file instead.");
+			} else if (response.status === 403) {
+				alert("403, eyes on me...\nYou don't have permission to delete this person!");
+			} else {
+				alert(`There was something strange going on. We didn't account for it, but here it is:\n${response.status}\n${msg}`);
+			}
+		}
+	</script>
+</body>
+</html>

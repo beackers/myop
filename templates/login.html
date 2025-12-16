@@ -1,26 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>beackers</title>                        <meta charset="UTF-8">                         <meta name="viewport" content="width=de
-vice-width, initial-scale=1.0">
-	<link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+	<title>MyOp - login</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
 </head>
 <body>
-	<nav>
-		<div id="navdiv"></div>
-	</nav>
-	<form action="/login" method="POST">
-		<label for="username">Call sign:</label>
-		<input type="text" id="username" name="username" value="{{ username }}"><br>
-		<label for="password">Password:</label>
-		<input type="password" id="password" name="password"><br>
-		<input type="hidden" name="csrf" value="{{ csrf }}">
-		<input type="submit">
-	</form>
-	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
-	<script src="{{ url_for('static', filename='nav.js') }}"></script>
-	<script>
-		addANav("");
-	</script>
+    <nav>
+        <div id="navdiv"></div>
+    </nav>
+    {% with msgs = get_flashed_messages() %}
+    {% if messages %}
+    {% for msg in msgs %}
+    <div class="flashes">
+	    <p>{{ msg }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+    {% if not loggedinas %}
+    <form action="/login" method="POST">
+        <label for="username">Call sign:</label>
+        <input type="text" id="username" name="username" value="{{ username }}"><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password"><br>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="submit">
+    </form>
+
+    {% else %}
+    <h2>You're logged in already</h2>
+    <h3>Your callsign: {{loggedinas}}</h3><br>
+    <button onclick="logout();">log out</button>
+    {% endif %}
+    <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+    <script src="{{ url_for('static', filename='nav.js') }}"></script>
+    <script>
+        addANav("");
+	async function logout() {
+		const response = await fetch(window.location.pathname, {
+			method: "DELETE",
+			headers: {"CSRF": "{{ csrf }}"}
+		});
+		if (response.ok) {
+			window.location.href = "/login";
+		} else {
+			msg = await response.text();
+			alert(`There were problems logging you out.
+			${response.status}
+			${msg}`);
+		}
+	}
+    </script>
 </body>
 </html>

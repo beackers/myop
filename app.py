@@ -1,7 +1,8 @@
-from flask import Flask, render_template, jsonify, request, session, abort, redirect
+from flask import Flask, render_template, jsonify, request, session, abort, redirect, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket, hashlib, json, logging, sqlite3, functools
+import userfunc
 
 
 # -------- SETUP -------- #
@@ -9,8 +10,14 @@ import secrets, time, socket, hashlib, json, logging, sqlite3, functools
 # App + WebSocket
 app = Flask(__name__.split(".")[0])
 app.config["SECRET_KEY"] = secrets.token_hex(16)
-key = hashlib.sha256(app.config["SECRET_KEY"].encode("utf-8")).hexdigest()
 websocket = SocketIO(app)
+
+
+
+# Little bit of color never hurt anybody :)
+def coloredText(text, code):
+    return f"\033[{code}m{text}\033[0m"
+
 
 # Logging
 def startLogger():
@@ -28,7 +35,8 @@ def startLogger():
     return log
 
 log = startLogger()
-log.info(f"Secret key generated! Hash: {key}")
+log.info("System check starting.")
+log.info(coloredText("Secret key generated!", "34"))
 
 
 # Database
@@ -39,8 +47,8 @@ with sqlite3.connect("myop.db") as conn:
             id INTEGER PRIMARY KEY,
             callsign TEXT NOT NULL UNIQUE,
             name TEXT NOT NULL,
-            pwdhash TEXT NOT NULL,
-            permissions TEXT NOT NULL,
+            pwdhash TEXT,
+            permissions INTEGER NOT NULL DEFAULT 0 CHECK (permissions IN (0,1)),
             active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0,1))
         );
             """)
@@ -55,11 +63,7 @@ with sqlite3.connect("myop.db") as conn:
         )
             """)
     conn.commit()
-
-
-# Little bit of color never hurt anybody :)
-def coloredText(stuff, colorcode):
-    return f"\033[{code}m{text}\033[0m"
+log.info(coloredText("Database is online and ready", "34"))
 
 
 # Set up files
@@ -80,26 +84,32 @@ except:
                 }
         json.dump(data, file)
     log.exception("Error loading config.json")
+log.info(coloredText("Configuration file is online and ready", "34"))
 
 # Check if logged in decorator
-def logged_in(route):
-    @functools.wraps(route)
-    def wrapper_logged_in(*args, **kwargs):
-        # for now just worry about the decorator
-        with sqlite3.connect("myop.db") as c:
-            cur = c.cursor()
-            if session.get("user"):
-                cur.execute("SELECT * FROM users WHERE callsign=?", (session.get("username")))
-                if not session.get("username") in cur.fetchall():
-                    log.debug("user redirected to login")
-                    return redirect("/login")
-                else:
-                    log.debug("user passed")
-                    return route(*args, **kwargs)
-            else:
-                log.info("user passed without login")
+def logged_in(permissions=0):
+    def wrapper(route):
+        @functools.wraps(route)
+        def wrapper_logged_in(*args, **kwargs):
+            if session.get("user") == "BOOTSTRAP_ADMIN":
+                log.info("Bootstrap admin is accessing page:")
                 return route(*args, **kwargs)
-    return wrapper_logged_in
+            if session.get("user"):
+                user = userfunc.User(session["user"])
+                if user.active and (user.permissions >= permissions):
+                    return route(*args, **kwargs)
+                else:
+                    log.warning("Someone just tried to access a page, but wasn't active or didn't have permissions")
+                    if not user.active:
+                        abort(403, "User's account is not active. If it should be, contact an administrator.")
+                    elif not user.permissions >= permissions:
+                        abort(403, "User's account doesn't have the right permissions. If you should, contact an administrator.")
+            else:
+                # for not-logged-in people
+                flash("please log in before continuing")
+                return redirect("/login", code=301)
+        return wrapper_logged_in
+    return wrapper
 
 # csrf checking
 def needs_csrf(route):
@@ -112,34 +122,60 @@ def needs_csrf(route):
             return route(*args, **kwargs)
     return wrapper_csrf
 
+def admin_exists():
+    with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
+        cur = c.cursor()
+        cur.execute("SELECT * FROM users WHERE permissions = 1;")
+        return len(cur.fetchall())
+
+
+log.info(coloredText("Key functions defined", "34"))
+
+if not admin_exists():
+    BOOTSTRAP_ADMIN = {
+            "callsign": "BOOTSTRAP_ADMIN",
+            "pwdhash": generate_password_hash("bootstrapbill"),
+            "active": 1,
+            "permissions": 1,
+            "name": None
+            }
+else:
+    BOOTSTRAP_ADMIN = None
+
+
 
 # ------------ APP ------------- #
 
 # Misc. routes
 @app.route("/")
-@logged_in
+@logged_in()
 def main():
     with open("static/config.json", "r") as f:
         title = json.load(f)["title"]
     return render_template("main.html", title=title)
 
 @app.route("/log")
-@logged_in
+@logged_in()
 def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
 
-
 # ======== Control Panel ======== #
 
 @app.route("/control", methods=['GET'])
-@logged_in
+@logged_in(1)
 @needs_csrf
 def control():
-    return render_template("control.html", csrf=session["csrf"])
+    with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
+        cur = c.cursor()
+        cur.execute("SELECT * FROM users ORDER BY name")
+        users = cur.fetchall()
+    return render_template("control.html", csrf=session["csrf"], users=users)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
-@logged_in
+@logged_in(1)
 def controlapi():
     if request.method == "GET":
         with open('static/config.json', "r") as file:
@@ -163,37 +199,124 @@ def controlapi():
             return redirect('/control', code=301)
 
 
+@app.route("/control/user/add", methods=["GET", "POST"])
+@logged_in(1)
+@needs_csrf
+def add_user():
+    if request.method == "GET":
+        return render_template("add_user.html", csrf=session["csrf"])
+    
+    newuser = request.form
 
-# The actual login page
-# Pro tip: no @logged_in (for obvious reasons)
-@app.route("/login", methods=["GET", "POST"])
+    # qualifications
+    if "csrf" not in newuser or "callsign" not in newuser or "permissions" not in newuser:
+        log.warning("someone tried to add a new user, but forgot basic deets")
+        abort(500)
+    if newuser["csrf"] != session["csrf"]:
+        log.warning("/control/user/add: CSRF didn't match")
+        abort(403)
+
+    log.debug("/control/user/add: form passed basic qualifications")
+    userfunc.new_user(
+            callsign = newuser["callsign"].lower(),
+            name = newuser["name"],
+            active = 1,
+            permissions = newuser["permissions"],
+            pwd = newuser["password"]
+            )
+    if newuser["permissions"] == 1 and admin_exists() and BOOTSTRAP_ADMIN:
+        BOOTSTRAP_ADMIN = None
+        session.clear()
+    log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
+    return redirect("/control", 301)
+
+
+@app.route("/control/user/<int:id>", methods=["GET", "POST", "DELETE"])
+@logged_in(1)
+@needs_csrf
+def view_or_edit_user(id: int):
+    try: user = userfunc.User(id=id)
+    except Exception as e:
+        print(e)
+        abort(500)
+    if request.method == "GET":
+        return render_template("view_user.html", csrf=session["csrf"], user=user)
+    elif request.method == "DELETE":
+        if user.permissions == 1 and admin_exists() == 1:
+            log.critical("Last active admin was almost deleted!")
+            abort(409, "cannot delete last admin")
+        if request.headers.get("csrf") != session["csrf"]:
+            abort(403, "CSRF token didn't match")
+        user.delete()
+        return jsonify({"status": 200}), 200
+    elif request.method == "POST":
+        if session["csrf"] != request.form["csrf"]: abort(403)
+        f = request.form
+        if f.get("active"):
+            active = 1
+        else:
+            active = 0
+        if active == 0 and user.permissions == 1 and admin_exists() == 1:
+            log.critical("Nearly deactivated last admin!")
+            abort(409, "cannot deactivate last admin")
+        permissions = int(f.get("permissions"))
+        user.edit(
+                name=f.get("name"),
+                permissions=permissions,
+                callsign=f.get("callsign").lower(),
+                active=active
+                )
+        if f.get("password"):
+            user.set_new_password(f["password"])
+        return redirect("/control", code=301)
+
+
+# --------- LOGIN ---------- #
+
+@app.route("/login", methods=["GET", "POST", "DELETE"])
 @needs_csrf
 def login():
     if request.method == "GET":
-        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"])
+        return render_template("login.html", username=session.get("username") or "", csrf=session["csrf"], loggedinas=session.get("user"))
+
     elif request.method == "POST":
         u = request.form
-        if ("csrf" or "username" or "password")not in u: abort(403)
-        if session["csrf"] != u["csrf"]: abort(403)
-        log.debug("login form passed basic qualifications")
-        with sqlite3.connect("myop.db") as c:
-            cur = c.cursor()
-            c.row_factory = sqlite3.Row
-            cur.execute("SELECT callsign, pwdhash FROM users WHERE (callsign = ?)", (u["username"].lower(),))
-            row = cur.fetchone()
-            if row is None:
-                log.warning(f"someone tried to log in, but username didn't exist\nusername: {u["username"]}")
-                abort(403)
-            if (row) and (check_password_hash(row["pwdhash"], u["password"])):
-                session["user"] = row["callsign"]
-                log.info("user logged in!")
-                return redirect("/", code=301)
+        # check csrf, un exist
+        if "csrf"  not in u or "username" not in u:
+            log.info("/login: request didn't pass BQ")
+            abort(403)
+        if session["csrf"] != u["csrf"]:
+            log.info("/login: CSRF didn't match")
+            abort(403)
+
+        # bootstrap operation
+        if BOOTSTRAP_ADMIN and u["username"] == BOOTSTRAP_ADMIN["callsign"] and not admin_exists():
+            if check_password_hash(BOOTSTRAP_ADMIN["pwdhash"], u["password"]):
+                session["user"] = "BOOTSTRAP_ADMIN"
+                return redirect("/control/user/add", 301)
             else:
-                log.warning(f"someone failed a login!\nusername: {u["username"]}\npassword: {u["password"]}")
+                log.info("someone just tried to log in as bootstrap admin")
                 abort(403)
+
+        # normal user
+        try:
+            user = userfunc.User(u["username"].lower())
+        except:
+            log.info("someone tried to log in with a username that doesn't exist")
+            abort(400)
+        if user.pwdhash and (check_password_hash(user.pwdhash, u["password"])):
+            session["user"] = user.callsign
+            return redirect("/", code=301)
+        elif not user.pwdhash:
+            session["user"] = user.callsign
+            return redirect("/", code=301)
+        else:
+            log.info("someone attempted login with a wrong password")
+            abort(403)
+
     elif request.method == "DELETE":
-        session["user"] = None
-        return redirect("/login", code=301)
+        session.clear()
+        return jsonify({"status": 200})
 
 
 
@@ -201,7 +324,7 @@ def login():
 # ======== Bulletins ======== #
 
 @app.route("/bulletins", methods=['GET'])
-@logged_in
+@logged_in()
 @needs_csrf
 def bulletins():
     with open("static/config.json", "r") as f:
@@ -210,9 +333,10 @@ def bulletins():
     return render_template("bulletins.html", csrf=session["csrf"], uname="None")
 
 @app.route("/bulletinsapi", methods=["GET"])
-@logged_in
+@logged_in()
 def bulletinsapiget():
     with sqlite3.connect("myop.db") as c:
+        c.row_factory = sqlite3.Row
         cur = c.cursor()
         cur.execute("SELECT * FROM bulletins")
         b = cur.fetchall()
@@ -221,39 +345,43 @@ def bulletinsapiget():
             }
     for bulletin in b:
         data["bulletins"].append({
-            "origin": bulletin[1],
-            "title": bulletin[2],
-            "body": bulletin[3],
-            "timestamp": bulletin[4],
-            "expires": bulletin[5]
+            "origin": bulletin["origin"],
+            "title": bulletin["title"],
+            "body": bulletin["body"],
+            "timestamp": bulletin["timestamp"],
+            "expires": bulletin["expires"]
         })
     return jsonify(data), 200
 
 @app.route("/bulletinsapi", methods=["POST"])
-@logged_in
+@logged_in()
 def bulletinsapipost():
     posted = request.form.get("csrf")
     stored = session.get("csrf")
     if not posted or posted != stored:
-        abort(403)
+        abort(403, "CSRF didn't match. Try reloading the page.")
     bulletin = request.form
-    log.debug(f"{bulletin=}")
     if not isinstance(bulletin, dict):
-        abort(403)
-    if ("title" and "expires" and "origin") not in bulletin: abort(403)
-    log.debug("bulletin passed basic qualifications")
+        abort(403, "Bulletin must be in the form of a dictionary. Contact administrators.")
+    if "title" not in bulletin or "expires" not in bulletin:
+        abort(403, "bulletin must have a title and expiration time. Revise the bulletin.")
+    expires = bulletin["expires"]
+    expires = (time.time() + (int(expires)*60))*1000
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
         cur.execute(
                 "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
-                (bulletin.get("origin"), bulletin.get("title"), bulletin.get("body"), bulletin.get("timestamp"), bulletin.get("expires"))
+                (session["user"],
+                 bulletin.get("title"),
+                 bulletin.get("body"),
+                 time.time()*1000,
+                 expires)
                 )
         c.commit()
-    log.debug("Changes commited")
     return redirect("/bulletins"), 301
 
 @app.route("/bulletinsapi", methods=['DELETE'])
-@logged_in
+@logged_in()
 def bulletinsapidelete():
     with sqlite3.connect("myop.db") as c:
         cur = c.cursor()
@@ -266,17 +394,17 @@ def bulletinsapidelete():
 # ======== Chat Stuff ========== #
 
 @app.route("/chat", methods=['GET'])
-@logged_in
+@logged_in()
 def chat():
     with open("static/config.json", "r") as f:
         config = json.load(f)
         if not config.get("services").get("chat"): return render_template("disabled.html"), 403
-    return render_template("chat.html")
+    return render_template("chat.html", callsign = session["user"])
 
 @websocket.on("message")
 def newMsg(data):
     try:
-        print("New Message:" + data.get("msg", " "))
+        print(f"New Message: {data.get("msg", " ")}\nFrom station: {data.get("username")}")
         dataToSend = {
             "timestamp": time.asctime(),
             "username": data.get("username", "unknown"),
@@ -294,17 +422,3 @@ def newMsg(data):
 
     finally:
         emit(dataType, dataToSend, broadcast=True)
-
-
-if __name__ == "__main__":
-    try:
-        websocket.run(app, host="0.0.0.0", port=5000)
-    except Exception as inst:
-        emit("error", {
-            "timestamp": time.asctime(),
-            "title": str(type(inst)),
-            "detail": str(e)
-        })
-        log.error("Something happened!", exc_info=1)
-        pass
-
