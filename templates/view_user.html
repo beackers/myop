@@ -12,29 +12,27 @@ vice-width, initial-scale=1.0">
 		<div id="navdiv"></div>
 	</nav>
 
-	<form action="/control/user/{{ user.id }}" method="POST">
-		<label for="callsign">Callsign:</label>
-		<input type="text" id="callsign" name="callsign" value="{{ user.callsign }}"><br>
-		<label for="name">Name:</label>
-		<input type="text" id="name" name="name" value="{{ user.name }}"><br>
-		<label for="permissions">Requested permissions:</label>
-		<select id="permissions" name="permissions">
-			<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
-			<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
-		</select><br>
-		{% if user.pwdhash %}
-		<p>User has password<br>
-		{{ user.pwdhash }}</p>
-		{% else %}
-		<p>User doesn't have a password set</p>
-		{% endif %}
-		<input type="{{ 'text' if user.permissions == 1 else 'hidden'}}" id="password" name="password" placeholder="enter password"><br>
-		<label for="active">Active user?</label>
-		<input {% if user.active %}checked{% endif %} type="checkbox" name="active"><br>
-		<input type="hidden" name="csrf" value="{{ csrf }}">
-		<button type="submit">Update user</button><br>
-	</form>
-	<button onclick="deleteUser()">Delete user</button>
+	<label for="callsign">Callsign:</label>
+	<input type="text" id="callsign" name="callsign" value="{{ user.callsign }}"><br>
+	<label for="name">Name:</label>
+	<input type="text" id="name" name="name" value="{{ user.name }}"><br>
+	<label for="permissions">Requested permissions:</label>
+	<select id="permissions" name="permissions">
+		<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
+		<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>
+	</select><br>
+	{% if user.pwdhash %}
+	<p>User has password<br>
+	{{ user.pwdhash }}</p>
+	{% else %}
+	<p>User doesn't have a password set</p>
+	{% endif %}
+	<input type="{{ 'text' if user.permissions == 1 else 'hidden'}}" id="password" name="password" placeholder="enter password"><br>
+	<label for="active">Active user?</label>
+	<input {% if user.active %}checked{% endif %} type="checkbox" name="active" id="active"><br>
+	<input type="hidden" name="csrf" value="{{ csrf }}" id="csrf">
+	<button type="button" onclick="updateUser()">Update user</button><br>
+	<button type="button" onclick="deleteUser()">Delete user</button>
 	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
 	<script src="{{ url_for('static', filename='nav.js') }}"></script>
 	<script>
@@ -60,7 +58,39 @@ vice-width, initial-scale=1.0">
 			} else if (response.status === 403) {
 				alert("403, eyes on me...\nYou don't have permission to delete this person!");
 			} else {
-				alert(`There was something strange going on. We didn't account for it, but here it is:\n${response.status}\n${msg}`);
+				alert(`An error occured that prevented the user from being deleted:\n${response.status}\n${msg}`);
+			}
+		}
+		async function updateUser() {
+			const callsign = document.getElementById("callsign");
+			const name = document.getElementById("name");
+			const permissions = document.getElementById("permissions");
+			const active = document.getElementById("active");
+			const csrf = document.getElementById("csrf");
+			let activeV;
+			if (active.checked) {
+				activeV = 1;
+			} else {
+				activeV = 0;
+			}
+			const response = await fetch(window.location.pathname, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json"
+				},
+				body: JSON.stringify({
+					callsign: callsign.value,
+					name: name.value,
+					active: activeV,
+					csrf: csrf.value,
+					permissions: permissions.value
+				})
+			});
+			if (response.ok) {
+				window.location.href = "/control";
+			} else {
+				msg = await response.text();
+				alert(`An error occured that prevented the user from being deleted.\nStatus code: ${response.status}\nReason: ${msg}`);
 			}
 		}
 	</script>
