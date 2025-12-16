@@ -11,7 +11,7 @@
         <div id="navdiv"></div>
     </nav>
     {% with msgs = get_flashed_messages() %}
-    {% if messages %}
+    {% if msgs %}
     {% for msg in msgs %}
     <div class="flashes">
 	    <p>{{ msg }}</p>
