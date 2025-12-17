@@ -2,7 +2,7 @@ from flask import Flask, render_template, jsonify, request, session, abort, redi
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
 import secrets, time, socket, hashlib, json, logging, sqlite3, functools
-import userfunc
+import userfunc, bullfunc
 
 
 # -------- SETUP -------- #
@@ -172,7 +172,9 @@ def control():
         cur = c.cursor()
         cur.execute("SELECT * FROM users ORDER BY name")
         users = cur.fetchall()
-    return render_template("control.html", csrf=session["csrf"], users=users)
+    bulletins = bullfunc.Bulletin.get_all_bulletins()
+    bulletins = [ b.to_dict() for b in bulletins ]
+    return render_template("control.html", csrf=session["csrf"], users=users, bulletins=bulletins)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
 @logged_in(1)
@@ -325,71 +327,66 @@ def login():
 
 # ======== Bulletins ======== #
 
-@app.route("/bulletins", methods=['GET'])
+@app.route("/bulletins", methods=['GET', "POST"])
 @logged_in()
 @needs_csrf
 def bulletins():
     with open("static/config.json", "r") as f:
         config = json.load(f)
         if not config.get("services").get("bulletins"): return render_template("disabled.html"), 403
-    return render_template("bulletins.html", csrf=session["csrf"], uname="None")
-
-@app.route("/bulletinsapi", methods=["GET"])
-@logged_in()
-def bulletinsapiget():
-    with sqlite3.connect("myop.db") as c:
-        c.row_factory = sqlite3.Row
-        cur = c.cursor()
-        cur.execute("SELECT * FROM bulletins")
-        b = cur.fetchall()
-    data = {
-            "bulletins": []
-            }
-    for bulletin in b:
-        data["bulletins"].append({
-            "origin": bulletin["origin"],
-            "title": bulletin["title"],
-            "body": bulletin["body"],
-            "timestamp": bulletin["timestamp"],
-            "expires": bulletin["expires"]
-        })
-    return jsonify(data), 200
-
-@app.route("/bulletinsapi", methods=["POST"])
-@logged_in()
-def bulletinsapipost():
-    posted = request.form.get("csrf")
-    stored = session.get("csrf")
-    if not posted or posted != stored:
-        abort(403, "CSRF didn't match. Try reloading the page.")
-    bulletin = request.form
-    if not isinstance(bulletin, dict):
-        abort(403, "Bulletin must be in the form of a dictionary. Contact administrators.")
-    if "title" not in bulletin or "expires" not in bulletin:
-        abort(403, "bulletin must have a title and expiration time. Revise the bulletin.")
-    expires = bulletin["expires"]
-    expires = (time.time() + (int(expires)*60))*1000
-    with sqlite3.connect("myop.db") as c:
-        cur = c.cursor()
-        cur.execute(
-                "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
-                (session["user"],
-                 bulletin.get("title"),
-                 bulletin.get("body"),
-                 time.time()*1000,
-                 expires)
+    if request.method == "GET":
+        return render_template("bulletins.html", csrf=session["csrf"])
+    elif request.method == "POST":
+        newbull = request.form
+        if not newbull.get("csrf") or newbull["csrf"] != session["csrf"]:
+            abort(409, "CSRF token didn't match. Try reloading.")
+        bullfunc.Bulletin.new_bulletin(
+                origin = session["user"],
+                title = newbull["title"],
+                body = newbull.get("body"),
+                expiresin = newbull["expiresin"]
                 )
-        c.commit()
-    return redirect("/bulletins"), 301
+        return render_template("bulletins.html", csrf=session["csrf"], origin=session["user"])
 
-@app.route("/bulletinsapi", methods=['DELETE'])
+
+
+@app.route("/bulletins/all", methods=["GET", "DELETE"])
 @logged_in()
-def bulletinsapidelete():
-    with sqlite3.connect("myop.db") as c:
-        cur = c.cursor()
-        cur.execute("DELETE FROM bulletins;")
-        c.commit()
-    return jsonify({"status": 200})
+@needs_csrf
+def allbulletins():
+    if request.method == "GET":
+        bulletins = bullfunc.Bulletin.get_all_bulletins()
+        bulletins = [ b.to_dict() for b in bulletins ]
+        return jsonify({
+            "bulletins": bulletins,
+            "status": 200
+            })
+    elif request.method == "DELETE":
+        j = request.get_json()
+        if j.get("csrf") != session["csrf"]:
+            return "CSRF token didn't match", 409
+        bulletins = bullfunc.Bulletin.get_all_bulletins()
+        for b in bulletins:
+            try: b.delete()
+            except Exception as e:
+                log.info(f"Failed to delete bulletin with ID {b.id}\n{e}")
+                return f"Couldn't delete bulletin {b.id}", 500
+        return jsonify({
+            "status": 200
+            })
+
+@app.route("/bulletins/<int:id>", methods=["GET", "UPDATE", "DELETE"])
+@logged_in
+@needs_csrf
+def onebulletin(id: int):
+    bulletin = bullfunc.Bulletin(id)
+    if request.method == "GET":
+        return render_template("view_bulletin.html", bulletin=bulletin)
+    elif request.method == "POST":
+        return jsonify({"status": 209})
+    elif request.method == "DELETE":
+        bulletin.delete()
+        return jsonify({"status": 200})
 
 
 

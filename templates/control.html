@@ -7,42 +7,83 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
 </head>
 <body>
+    <input type="hidden" value="{{ csrf }}" id="csrf">
     <nav>
         <div id="navdiv"></div>
     </nav>
     <a href="/log">app logs</a>
     <div id="config"></div><br>
-    <div id="deletebulletins"></div><br>
-    
+
+    <details>
+        <summary> Users </summary>
+    <a href="/control/user/add">Add a user</a>
     <div id="usertable" style="usertable">
         <table>
+        <thead>
             <tr style="background-color: gray;">
                 <td>Name</td>
                 <td>Callsign</td>
                 <td>Edit Link</td>
             </tr>
-	    {% for u in users%}
-                <tr>
-                    <td>{{ u.name }}</td>
-                    <td>{{ u.callsign }}</td>
-                    <td>
-                        <form action="/control/user/{{ u.id }}" method="get">
-                            <button type="submit">View</button>
-                        </form>
-                    </td>
-                </tr>
-	    {% endfor %}
+        </thead>
+        <tbody>
+        {% for u in users%}
+            <tr>
+                <td>{{ u.name }}</td>
+                <td>{{ u.callsign }}</td>
+                <td>
+                    <form action="/control/user/{{ u.id }}" method="get">
+                        <button type="submit">View</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+        </table>
     </div>
-    <a href="/control/user/add">Add a user</a>
-
+    </details>
+    <details>
+	<summary>Bulletins</summary>
+    <button id="delBullBtn">Delete All Bulletins</button>
+    <div id="bulletinstable">
+        <table>
+	        <thead>
+            <tr style="background-color: gray;">
+                <td>Title</td>
+                <td>Timestamp</td>
+                <td>Origin</td>
+                <td>View/Edit</td>
+            </tr>
+            </thead>
+            <tbody>
+            {% if bulletins %}
+            {% for b in bulletins %}
+            <tr>
+                <td>{{ b.title }}</td>
+                <td>{{ b.timestamp }}</td>
+                <td>{{ b.origin }}</td>
+                <td>
+                    <a href="/bulletins/{{ b.id }}">
+                        <button>Edit</button>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            </tbody>
+    </div>
+    </details>
 
     <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
     <script src="{{ url_for('static', filename='nav.js') }}"></script>
     <script src="{{ url_for('static', filename='config.js') }}"></script>
     <script>
         addANav();
-        refreshConfig("{{ csrf }}");
-        addDeleteBulletins();
+	refreshConfig("{{ csrf }}");
+	const delBullBtn = document.getElementById("delBullBtn");
+	delBullBtn.onclick = function () {
+		deleteBulletins("{{ csrf }}");
+	};
     </script>
 </body>
 </html>
