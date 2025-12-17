@@ -1,4 +1,4 @@
-import sqlite3
+import sqlite3, functools
 from werkzeug.security import generate_password_hash
 
 class User:
@@ -24,15 +24,18 @@ class User:
         self.name = row["name"]
         self.pwdhash = row["pwdhash"]
         self.callsign = row["callsign"]
-        if row["permissions"] == 0:
-            self.permissions = False
-        elif row["permissions"] == 1:
-            self.permissions = True
-        else:
-            self.permissions = None
+        self.permissions = int(row["permissions"])
         self.active = bool(row["active"])
         return None
 
+
+    def _load_from_row(self, row: sqlite3.Row):
+        self.id = row["id"]
+        self.callsign = row["callsign"]
+        self.pwdhash = row["pwdhash"]
+        self.name = row["name"]
+        self.active = bool(row["active"])
+        self.permissions = int(row["permissions"])
 
     def delete(self):
         with sqlite3.connect("myop.db") as c:
@@ -47,19 +50,26 @@ class User:
         with sqlite3.connect("myop.db") as c:
             c.row_factory = sqlite3.Row
             cur = c.cursor()
-            attr = []
-            for key in kwargs.keys():
-                if key != "pwdhash":
-                    attr.append(f"{key} = '{kwargs[key]}'")
-                else:
-                    attr.append(f"{key} = '{generate_password_hash(kwargs["pwdhash"])}'")
+            attr = [ f"{key} = ?"
+                    for key in kwargs.keys()
+                    if key != "pwdhash"
+                    ]
+            values = tuple( value
+                      for key, value in kwargs.items()
+                      if key != "pwdhash"
+                      )
+            if "pwdhash" in kwargs.keys():
+                attr.append("pwdhash = ?")
+                values = values + (generate_password_hash(kwargs["pwdhash"]),)
+            values = values + (self.id,)
             attr = ", ".join(attr)
-            cur.execute(
-                    f"UPDATE users SET {attr} WHERE id = ?",
-                    (self.id,)
-                    )
+            if attr:
+                cur.execute(
+                        f"UPDATE users SET {attr} WHERE id = ?",
+                        values
+                        )
             c.commit()
-            self.__init__(id=self.id)
+            return self.__init__(id=self.id)
 
     def set_new_password(self, newpwd: str):
         newpwd = generate_password_hash(newpwd)
@@ -69,17 +79,42 @@ class User:
             c.commit()
         return User(id=self.id)
 
-def new_user(callsign: str, name: str=None, permissions: int=0, active: int=0, pwd: str=None):
-    with sqlite3.connect("myop.db") as c:
-        c.row_factory = sqlite3.Row
-        cur = c.cursor()
-        if pwd:
-            pwd = generate_password_hash(pwd)
-        cur.execute("""
-        INSERT INTO users (callsign, name, permissions, pwdhash, active) VALUES (?,?,?,?,?);
-        """,
-                    (callsign, name, permissions, pwd, active)
-                    )
-        c.commit()
-    return User(callsign)
+    def to_dict(self):
+        return {
+                "id": self.id,
+                "callsign": self.callsign,
+                "name": self.name,
+                "pwdhash": self.pwdhash,
+                "active": self.active,
+                "permissions": self.permissions
+                }
 
+    @classmethod
+    def new_user(cls, callsign: str, name: str=None, permissions: int=0, active: int=0, pwd: str=None):
+        with sqlite3.connect("myop.db") as c:
+            c.row_factory = sqlite3.Row
+            cur = c.cursor()
+            if pwd:
+                pwd = generate_password_hash(pwd)
+            cur.execute("""
+            INSERT INTO users (callsign, name, permissions, pwdhash, active) VALUES (?,?,?,?,?);
+            """,
+                        (callsign, name, permissions, pwd, active)
+                        )
+            c.commit()
+        return cls(callsign)
+
+    @classmethod
+    def get_all_users(cls):
+        with sqlite3.connect("myop.db") as c:
+            c.row_factory = sqlite3.Row
+            cur = c.cursor()
+            cur.execute("SELECT * FROM users ORDER BY id ASC")
+            return [ cls.from_row(row) for row in cur.fetchall() ]
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row):
+        obj = cls.__new__(cls)
+        obj._load_from_row(row)
+        obj._deleted = False
+        return obj

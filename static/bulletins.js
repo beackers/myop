@@ -3,7 +3,7 @@ async function loadBulletins() {
     if (!container) return;
 
     try {
-    const response = await fetch("/bulletinsapi");
+    const response = await fetch("/bulletins/all");
     if (!response.ok) {
         container.textContent = "Error loading bulletins.";
         return;
@@ -34,8 +34,8 @@ async function loadBulletins() {
         const meta = document.createElement("div");
         meta.className = "bulletinMeta";
 
-        const ts = new Date(b.timestamp).toLocaleString();
-        const exp = b.expires ? new Date(b.expires).toLocaleString() : "N/A";
+        const ts = new Date(b.timestamp*1000).toLocaleString();
+        const exp = b.expires ? new Date(b.expires*1000).toLocaleString() : "N/A";
 	const origin = b.origin || "unknown origin"
 
         meta.textContent = `Posted: ${ts} | Expires: ${exp}\nOriginating station: ${origin}`;

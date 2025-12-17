@@ -1,8 +1,8 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket, hashlib, json, logging, sqlite3, functools
-import userfunc
+import secrets, time, socket, hashlib, json, logging, sqlite3, functools, re
+import userfunc, bullfunc
 
 
 # -------- SETUP -------- #
@@ -21,6 +21,12 @@ def coloredText(text, code):
 
 # Logging
 def startLogger():
+    ansiscapere = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+    class AnsiEscapeFormatter(logging.Formatter):
+        def format(self, record):
+            msg = super().format(record)
+            return ansiescapere.("", msg)
+
     log = logging.getLogger(__name__)
     log.setLevel("INFO")
     if not log.handlers:
@@ -28,7 +34,8 @@ def startLogger():
         streamHandler = logging.StreamHandler()
         fmt = "{asctime} [{levelname}]: \n{message}"
         formatter = logging.Formatter(fmt, style="{")
-        handler.setFormatter(formatter)
+        escapedformatter = AnsiEscapeFormatter(fmt, style="{")
+        handler.setFormatter(escapedformatter)
         streamHandler.setFormatter(formatter)
         log.addHandler(handler)
         log.addHandler(streamHandler)
@@ -37,6 +44,8 @@ def startLogger():
 log = startLogger()
 log.info("System check starting.")
 log.info(coloredText("Secret key generated!", "34"))
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
+app.logger.setLevel(logging.WARNING)
 
 
 # Database
@@ -161,6 +170,10 @@ def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
 
+@app.errorhandler(500)
+def err500(e):
+    return f"{str(e)}\n{e.name}\n{e.description}", e.code
+
 # ======== Control Panel ======== #
 
 @app.route("/control", methods=['GET'])
@@ -172,7 +185,9 @@ def control():
         cur = c.cursor()
         cur.execute("SELECT * FROM users ORDER BY name")
         users = cur.fetchall()
-    return render_template("control.html", csrf=session["csrf"], users=users)
+    bulletins = bullfunc.Bulletin.get_all_bulletins()
+    bulletins = [ b.to_dict() for b in bulletins ]
+    return render_template("control.html", csrf=session["csrf"], users=users, bulletins=bulletins)
 
 @app.route("/controlapi", methods=['GET', 'POST'])
 @logged_in(1)
@@ -217,16 +232,17 @@ def add_user():
         abort(403)
 
     log.debug("/control/user/add: form passed basic qualifications")
-    userfunc.new_user(
+    new = userfunc.User.new_user(
             callsign = newuser["callsign"].lower(),
             name = newuser["name"],
             active = 1,
             permissions = newuser["permissions"],
             pwd = newuser["password"]
             )
-    if newuser["permissions"] == 1 and admin_exists() and BOOTSTRAP_ADMIN:
+    if new.permissions > 0 and admin_exists() and BOOTSTRAP_ADMIN is not None:
         BOOTSTRAP_ADMIN = None
         session.clear()
+        return redirect("/login", 301)
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
     return redirect("/control", 301)
 
@@ -242,7 +258,7 @@ def view_or_edit_user(id: int):
     if request.method == "GET":
         return render_template("view_user.html", csrf=session["csrf"], user=user)
     elif request.method == "DELETE":
-        if user.permissions == 1 and admin_exists() == 1:
+        if user.permissions >= 1 and admin_exists() == 1:
             log.critical("Last active admin was almost deleted!")
             return "cannot delete last admin", 409
         if request.headers.get("csrf") != session["csrf"]:
@@ -250,25 +266,34 @@ def view_or_edit_user(id: int):
         user.delete()
         return jsonify({"status": 200}), 200
     elif request.method == "POST":
-        f = request.get_json()
+        f = dict(request.get_json())
         if session["csrf"] != f["csrf"]: return "CSRF token doesn't match. Try reloading.", 409
-        active = int(f["active"])
-        if active == 0 and user.permissions == 1 and admin_exists() == 1:
+        f["active"] = bool(int(f.get("active") or 0))
+        f["permissions"] = int(f.get("permissions") or 0)
+        if f["active"] == 0 and user.permissions == 1 and admin_exists() == 1:
             log.critical("Nearly deactivated last admin!")
             return "cannot deactivate last admin", 409
-        if user.permissions == 1 and admin_exists() == 1 and int(f.get("permissions")) == 0:
+        if user.permissions == 1 and admin_exists() == 1 and f["permissions"] < 1:
             log.critical("Nearly locked all users out of control panel!")
             return "cannot change last admin to normal user", 409
-        permissions = int(f.get("permissions"))
-        user.edit(
-                name=f.get("name"),
-                permissions=permissions,
-                callsign=f.get("callsign").lower(),
-                active=active
-                )
-        if f.get("password"):
-            user.set_new_password(f["password"])
-        return redirect("/control", code=301)
+        editable_fields = ["callsign", "name", "active", "permissions"]
+        old = user.to_dict()
+        diff = {
+                k: f[k]
+                for k in editable_fields
+                if k in f and f[k] != old[k]
+                }
+        if not diff and f["pwdhash"] is None:
+            return "No changes were submitted", 301
+        if diff:
+            try: user.edit(**diff)
+            except Exception as e:
+                log.exception(e)
+                return str(e), 500
+        if f["pwdhash"] is not None:
+            user.set_new_password(f["pwdhash"])
+            log.info(f"{coloredText(user.callsign, 36)}'s password was changed by {coloredText(session["user"], 31)}")
+        return "Changes saved", 200
 
 
 # --------- LOGIN ---------- #
@@ -325,71 +350,79 @@ def login():
 
 # ======== Bulletins ======== #
 
-@app.route("/bulletins", methods=['GET'])
+@app.route("/bulletins", methods=['GET', "POST"])
 @logged_in()
 @needs_csrf
 def bulletins():
     with open("static/config.json", "r") as f:
         config = json.load(f)
         if not config.get("services").get("bulletins"): return render_template("disabled.html"), 403
-    return render_template("bulletins.html", csrf=session["csrf"], uname="None")
-
-@app.route("/bulletinsapi", methods=["GET"])
-@logged_in()
-def bulletinsapiget():
-    with sqlite3.connect("myop.db") as c:
-        c.row_factory = sqlite3.Row
-        cur = c.cursor()
-        cur.execute("SELECT * FROM bulletins")
-        b = cur.fetchall()
-    data = {
-            "bulletins": []
-            }
-    for bulletin in b:
-        data["bulletins"].append({
-            "origin": bulletin["origin"],
-            "title": bulletin["title"],
-            "body": bulletin["body"],
-            "timestamp": bulletin["timestamp"],
-            "expires": bulletin["expires"]
-        })
-    return jsonify(data), 200
-
-@app.route("/bulletinsapi", methods=["POST"])
-@logged_in()
-def bulletinsapipost():
-    posted = request.form.get("csrf")
-    stored = session.get("csrf")
-    if not posted or posted != stored:
-        abort(403, "CSRF didn't match. Try reloading the page.")
-    bulletin = request.form
-    if not isinstance(bulletin, dict):
-        abort(403, "Bulletin must be in the form of a dictionary. Contact administrators.")
-    if "title" not in bulletin or "expires" not in bulletin:
-        abort(403, "bulletin must have a title and expiration time. Revise the bulletin.")
-    expires = bulletin["expires"]
-    expires = (time.time() + (int(expires)*60))*1000
-    with sqlite3.connect("myop.db") as c:
-        cur = c.cursor()
-        cur.execute(
-                "INSERT INTO bulletins (origin, title, body, timestamp, expires) VALUES (?,?,?,?,?)",
-                (session["user"],
-                 bulletin.get("title"),
-                 bulletin.get("body"),
-                 time.time()*1000,
-                 expires)
+    if request.method == "GET":
+        return render_template("bulletins.html", csrf=session["csrf"])
+    elif request.method == "POST":
+        newbull = request.form
+        if not newbull.get("csrf") or newbull["csrf"] != session["csrf"]:
+            abort(409, "CSRF token didn't match. Try reloading.")
+        bullfunc.Bulletin.new_bulletin(
+                origin = session["user"],
+                title = newbull["title"],
+                body = newbull.get("body"),
+                expiresin = newbull["expiresin"]
                 )
-        c.commit()
-    return redirect("/bulletins"), 301
+        return render_template("bulletins.html", csrf=session["csrf"], origin=session["user"])
 
-@app.route("/bulletinsapi", methods=['DELETE'])
+
+
+@app.route("/bulletins/all", methods=["GET", "DELETE"])
 @logged_in()
-def bulletinsapidelete():
-    with sqlite3.connect("myop.db") as c:
-        cur = c.cursor()
-        cur.execute("DELETE FROM bulletins;")
-        c.commit()
-    return jsonify({"status": 200})
+@needs_csrf
+def allbulletins():
+    if request.method == "GET":
+        bulletins = bullfunc.Bulletin.get_all_bulletins()
+        bulletins = [ b.to_dict() for b in bulletins ]
+        return jsonify({
+            "bulletins": bulletins,
+            "status": 200
+            })
+    elif request.method == "DELETE":
+        j = request.get_json()
+        if j.get("csrf") != session["csrf"]:
+            return "CSRF token didn't match", 409
+        bulletins = bullfunc.Bulletin.get_all_bulletins()
+        for b in bulletins:
+            try: b.delete()
+            except Exception as e:
+                log.info(f"Failed to delete bulletin with ID {b.id}\n{e}")
+                return f"Couldn't delete bulletin {b.id}", 500
+        return jsonify({
+            "status": 200
+            })
+
+@app.route("/bulletins/<int:id>", methods=["GET", "UPDATE", "DELETE"])
+@logged_in()
+@needs_csrf
+def onebulletin(id: int):
+    bulletin = bullfunc.Bulletin(id)
+    if request.method == "GET":
+        return render_template("view_bulletin.html", bulletin=bulletin)
+    elif request.method == "UPDATE":
+        j = request.get_json()
+        og = bulletin.to_dict()
+        acceptable_fields = { "title", "origin", "body" }
+        diff = {
+                k: j[k]
+                for k in acceptable_fields
+                if k in j and j[k] != og[k]
+                }
+        if not diff: return "No changes were submitted", 304
+        try: bulletin.edit(**diff)
+        except Exception as e:
+            log.error(f"/bulletins/{id}: error in editing bulletin {bulletin.id}\n{e}")
+            return e, 500
+        return "Accepted and edited", 200
+    elif request.method == "DELETE":
+        bulletin.delete()
+        return "Successfully deleted post", 200
 
 
 

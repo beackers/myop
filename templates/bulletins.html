@@ -2,46 +2,46 @@
 <html>
 <head>
         <title>MyOp - bulletin board</title>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
-	<link rel="stylesheet" href="{{ url_for('static', filename='bulletinStyle.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='bulletinStyle.css') }}">
 </head>
 <body>
         <nav>
-                <div id="navdiv"></div>
+            <div id="navdiv"></div>
         </nav>
 
         <details>
-                <summary>post new bulletin</summary>
-                <form action="/bulletinsapi" method="post" enctype="multipart/form-data">
-                        <input name="title" type="text" placeholder="title">
-			<textarea name="body" placeholder="body"></textarea><br>
-			<select name="expires">
-				<option value=0>Never</option>
-				<option value=30>30 minutes</option>
-				<option value=60 selected>1 hr</option>
-				<option value=120>2 hr</option>
-			</select>
-                        <input type="hidden" name="csrf" value="{{ csrf }}">
-			<button type="submit">post</button>
+            <summary>post new bulletin</summary>
+            <form action="/bulletins" method="post">
+                <input name="title" type="text" placeholder="title" required>
+                <textarea name="body" placeholder="body"></textarea><br>
+                <select name="expiresin">
+                    <option value=0>Never</option>
+                    <option value=30>30 minutes</option>
+                    <option value=60 selected>1 hr</option>
+                    <option value=120>2 hr</option>
+                </select>
+                <input type="hidden" name="csrf" value="{{ csrf }}">
+                <button type="submit">post</button>
                 </form>
         </details>
 
         <details>
-		<summary>bulletins</summary>
+        <summary>bulletins</summary>
                 <button id="refresh">refresh</button>
                 <div id="bulletinList"></div>
         </details>
 
-	<script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+    <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
         <script src="{{ url_for('static', filename='nav.js') }}"></script>
         <script src="{{ url_for('static', filename='bulletins.js') }}"></script>
     <script>
         addANav();
         const refresh = document.getElementById("refresh");
         refresh.onclick = loadBulletins;
-	document.addEventListener("DOMContentLoaded", loadBulletins);
+    document.addEventListener("DOMContentLoaded", loadBulletins);
     </script>
 </body>
 </html>

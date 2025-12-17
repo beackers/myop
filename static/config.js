@@ -1,5 +1,5 @@
 function refreshConfig(csrf) {
-    wrapper = document.getElementById("config");
+    const wrapper = document.getElementById("config");
     var config;
     fetch("/controlapi")
     .then (response => response.json())
@@ -64,14 +64,20 @@ function refreshConfig(csrf) {
 }
 
 
-function addDeleteBulletins() {
-	const button = document.createElement("button");
-	button.textContent = "Delete bulletins"
-	button.onclick = function () {
-		fetch("/bulletinsapi", {
-			"method": "DELETE"
-		});
-	};
-	const buttonwrapper = document.getElementById("deletebulletins")
-	buttonwrapper.appendChild(button)
+async function deleteBulletins(csrf) {
+	const response = await fetch("/bulletins/all", {
+		method: "DELETE",
+		headers: {
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({
+			"csrf": csrf
+		})
+	});
+	if (response.ok) {
+		window.location.pathname = window.location.pathname
+	} else {
+		const msg = await response.text();
+		alert(`An error occured that prevented bulletins from being deleted.\n${response.status}\n${msg}`);
+	}
 }
