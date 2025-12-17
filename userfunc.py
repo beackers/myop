@@ -63,10 +63,11 @@ class User:
                 values = values + (generate_password_hash(kwargs["pwdhash"]),)
             values = values + (self.id,)
             attr = ", ".join(attr)
-            cur.execute(
-                    f"UPDATE users SET {attr} WHERE id = ?",
-                    values
-                    )
+            if attr:
+                cur.execute(
+                        f"UPDATE users SET {attr} WHERE id = ?",
+                        values
+                        )
             c.commit()
             return self.__init__(id=self.id)
 
@@ -77,6 +78,16 @@ class User:
             cur.execute("UPDATE users SET pwdhash = ? WHERE id = ?;", (newpwd, self.id))
             c.commit()
         return User(id=self.id)
+
+    def to_dict(self):
+        return {
+                "id": self.id,
+                "callsign": self.callsign,
+                "name": self.name,
+                "pwdhash": self.pwdhash,
+                "active": self.active,
+                "permissions": self.permissions
+                }
 
     @classmethod
     def new_user(cls, callsign: str, name: str=None, permissions: int=0, active: int=0, pwd: str=None):

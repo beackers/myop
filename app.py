@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request, session, abort, redirect, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_socketio import SocketIO, send, emit
-import secrets, time, socket, hashlib, json, logging, sqlite3, functools
+import secrets, time, socket, hashlib, json, logging, sqlite3, functools, re
 import userfunc, bullfunc
 
 
@@ -21,6 +21,12 @@ def coloredText(text, code):
 
 # Logging
 def startLogger():
+    ansiscapere = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+    class AnsiEscapeFormatter(logging.Formatter):
+        def format(self, record):
+            msg = super().format(record)
+            return ansiescapere.("", msg)
+
     log = logging.getLogger(__name__)
     log.setLevel("INFO")
     if not log.handlers:
@@ -28,7 +34,8 @@ def startLogger():
         streamHandler = logging.StreamHandler()
         fmt = "{asctime} [{levelname}]: \n{message}"
         formatter = logging.Formatter(fmt, style="{")
-        handler.setFormatter(formatter)
+        escapedformatter = AnsiEscapeFormatter(fmt, style="{")
+        handler.setFormatter(escapedformatter)
         streamHandler.setFormatter(formatter)
         log.addHandler(handler)
         log.addHandler(streamHandler)
@@ -37,6 +44,8 @@ def startLogger():
 log = startLogger()
 log.info("System check starting.")
 log.info(coloredText("Secret key generated!", "34"))
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
+app.logger.setLevel(logging.WARNING)
 
 
 # Database
@@ -161,6 +170,10 @@ def showlog():
     with open("static/app.log", "r") as log:
         return log.read().encode("utf-8"), 200
 
+@app.errorhandler(500)
+def err500(e):
+    return f"{str(e)}\n{e.name}\n{e.description}", e.code
+
 # ======== Control Panel ======== #
 
 @app.route("/control", methods=['GET'])
@@ -219,16 +232,17 @@ def add_user():
         abort(403)
 
     log.debug("/control/user/add: form passed basic qualifications")
-    userfunc.User.new_user(
+    new = userfunc.User.new_user(
             callsign = newuser["callsign"].lower(),
             name = newuser["name"],
             active = 1,
             permissions = newuser["permissions"],
             pwd = newuser["password"]
             )
-    if newuser["permissions"] == 1 and admin_exists() and BOOTSTRAP_ADMIN:
+    if new.permissions > 0 and admin_exists() and BOOTSTRAP_ADMIN is not None:
         BOOTSTRAP_ADMIN = None
         session.clear()
+        return redirect("/login", 301)
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
     return redirect("/control", 301)
 
@@ -262,18 +276,23 @@ def view_or_edit_user(id: int):
         if user.permissions == 1 and admin_exists() == 1 and f["permissions"] < 1:
             log.critical("Nearly locked all users out of control panel!")
             return "cannot change last admin to normal user", 409
+        editable_fields = ["callsign", "name", "active", "permissions"]
         old = user.to_dict()
         diff = {
                 k: f[k]
                 for k in editable_fields
                 if k in f and f[k] != old[k]
                 }
-        if not diff:
+        if not diff and f["pwdhash"] is None:
             return "No changes were submitted", 301
-        try: user.edit(**diff)
-        except Exception as e:
-            log.error(e)
-            return e, 500
+        if diff:
+            try: user.edit(**diff)
+            except Exception as e:
+                log.exception(e)
+                return str(e), 500
+        if f["pwdhash"] is not None:
+            user.set_new_password(f["pwdhash"])
+            log.info(f"{coloredText(user.callsign, 36)}'s password was changed by {coloredText(session["user"], 31)}")
         return "Changes saved", 200
 
 
