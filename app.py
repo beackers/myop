@@ -18,14 +18,14 @@ websocket = SocketIO(app)
 def coloredText(text, code):
     return f"\033[{code}m{text}\033[0m"
 
+ansiescapere = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+class AnsiEscapeFormatter(logging.Formatter):
+    def format(self, record):
+        msg = super().format(record)
+        return ansiescapere.sub("", msg)
 
 # Logging
 def startLogger():
-    ansiscapere = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
-    class AnsiEscapeFormatter(logging.Formatter):
-        def format(self, record):
-            msg = super().format(record)
-            return ansiescapere.("", msg)
 
     log = logging.getLogger(__name__)
     log.setLevel("INFO")
@@ -101,7 +101,7 @@ def logged_in(permissions=0):
         @functools.wraps(route)
         def wrapper_logged_in(*args, **kwargs):
             if session.get("user") == "BOOTSTRAP_ADMIN":
-                log.info("Bootstrap admin is accessing page:")
+                log.info("Bootstrap admin is accessing page")
                 return route(*args, **kwargs)
             if session.get("user"):
                 user = userfunc.User(session["user"])
@@ -142,7 +142,7 @@ def admin_exists():
 log.info(coloredText("Key functions defined", "34"))
 
 if not admin_exists():
-    BOOTSTRAP_ADMIN = {
+    app.config["BOOTSTRAP_ADMIN"] = {
             "callsign": "BOOTSTRAP_ADMIN",
             "pwdhash": generate_password_hash("bootstrapbill"),
             "active": 1,
@@ -150,7 +150,7 @@ if not admin_exists():
             "name": None
             }
 else:
-    BOOTSTRAP_ADMIN = None
+    app.config["BOOTSTRAP_ADMIN"] = None
 
 
 
@@ -239,8 +239,8 @@ def add_user():
             permissions = newuser["permissions"],
             pwd = newuser["password"]
             )
-    if new.permissions > 0 and admin_exists() and BOOTSTRAP_ADMIN is not None:
-        BOOTSTRAP_ADMIN = None
+    if new.permissions > 0 and admin_exists() and app.config.get("BOOTSTRAP_ADMIN") is not None:
+        app.config["BOOTSTRAP_ADMIN"] = None
         session.clear()
         return redirect("/login", 301)
     log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
@@ -315,8 +315,8 @@ def login():
             abort(403)
 
         # bootstrap operation
-        if BOOTSTRAP_ADMIN and u["username"] == BOOTSTRAP_ADMIN["callsign"] and not admin_exists():
-            if check_password_hash(BOOTSTRAP_ADMIN["pwdhash"], u["password"]):
+        if app.config.get("BOOTSTRAP_ADMIN") and u["username"] == app.config["BOOTSTRAP_ADMIN"]["callsign"] and not admin_exists():
+            if check_password_hash(app.config["BOOTSTRAP_ADMIN"]["pwdhash"], u["password"]):
                 session["user"] = "BOOTSTRAP_ADMIN"
                 return redirect("/control/user/add", 301)
             else:
