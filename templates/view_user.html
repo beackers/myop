@@ -16,7 +16,7 @@ vice-width, initial-scale=1.0">
 	<input type="text" id="callsign" name="callsign" value="{{ user.callsign }}"><br>
 	<label for="name">Name:</label>
 	<input type="text" id="name" name="name" value="{{ user.name }}"><br>
-	<label for="permissions">Requested permissions:</label>
+	<label for="permissions">Permissions:</label>
 	<select id="permissions" name="permissions">
 		<option value="0" {% if user.permissions == 0 %}selected{% endif %}>none</option>
 		<option {% if user.permissions == 1 %}selected{% endif %} value="1">admin</option>

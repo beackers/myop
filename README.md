@@ -52,19 +52,26 @@ Find the latest release in the Releases tab and download a package (I generally 
 * a folder called **static** with a few .js files, a few .json files,  and a .css file.
 
 ### step four: dry-run the server
-* Open a command line interface and navigate to the folder containing `app.py`, then run `flask run`.
-* On the same device, in a browser, navigate to `localhost:5000/`.
-* You should see the home page pop up!
+1. Open a command line interface and navigate to the folder containing `app.py`, then run `flask run`.
+2. On the same device, in a browser, navigate to `localhost:5000/`.
+3. You should see the login page pop up!
 
-### step five: configure the server as an AREDN service
+ ### step five: configure for current incident
+1. Log in as username "BOOTSTRAP\_ADMIN" with password "bootstrapbill". This login is the default bootstrap user (if you know how, I'd recommend changing the password. Look for BOOTSTRAP\_ADMIN's definition in `app.py` and change the text inside `generate_password_hash`).
+2. The system will then take you a page where you can register the first admin user. This step is not required but is **highly recommended**, as the bootstrap admin is active until the first admin user is created. Fill out the callsign(required) and name (recommended) fields and make sure the "active" checkbox is checked, then change the permissions dropdown to "admin" and enter a password. **Remember your password, because you won't be able to get it back.** (It is possible to change the password, but this method is beyond the scope of this document.) Submit the form.
+3. The system will take you to the login page again. Log in as the user you just created.
+4. The system will take you to the homepage. Congrats, your system is set up!
+
+### step six: configure the server as an AREDN service
 (help wanted! I haven't done this before at the time of writing. instructions would be great.)
 
 ---
 
 ## during a deployment
-* Run the server with `flask run --host 0.0.0.0`
-* Plug the server into the AREDN node
-* All good to go!
+1. Run the server with `flask run --host 0.0.0.0`
+2. Plug the server into the AREDN node
+3. Access the webpage and configure user accounts and settings (located in the control panel)
+3. All good to go!
 
 
 
