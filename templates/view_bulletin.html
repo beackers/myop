@@ -17,9 +17,7 @@ vice-width, initial-scale=1.0">
     <label for="title">Title:</label>
     <input type="text" id="title" name="title" value="{{ bulletin.title }}"><br>
     <label for="body">Body:</label>
-    <textarea id="body" name="body">
-        {{ bulletin.body }}
-    </textarea>
+    <textarea id="body" name="body">{{ bulletin.body }}</textarea>
     <input type="hidden" name="csrf" value="{{ csrf }}" id="csrf">
     <button type="button" id="updateBtn">Update bulletin</button><br>
     <button type="button" id="deleteBtn">Delete bulletin</button>

@@ -219,7 +219,7 @@ def add_user():
         abort(403)
 
     log.debug("/control/user/add: form passed basic qualifications")
-    userfunc.new_user(
+    userfunc.User.new_user(
             callsign = newuser["callsign"].lower(),
             name = newuser["name"],
             active = 1,
@@ -244,7 +244,7 @@ def view_or_edit_user(id: int):
     if request.method == "GET":
         return render_template("view_user.html", csrf=session["csrf"], user=user)
     elif request.method == "DELETE":
-        if user.permissions == 1 and admin_exists() == 1:
+        if user.permissions >= 1 and admin_exists() == 1:
             log.critical("Last active admin was almost deleted!")
             return "cannot delete last admin", 409
         if request.headers.get("csrf") != session["csrf"]:
@@ -252,25 +252,29 @@ def view_or_edit_user(id: int):
         user.delete()
         return jsonify({"status": 200}), 200
     elif request.method == "POST":
-        f = request.get_json()
+        f = dict(request.get_json())
         if session["csrf"] != f["csrf"]: return "CSRF token doesn't match. Try reloading.", 409
-        active = int(f["active"])
-        if active == 0 and user.permissions == 1 and admin_exists() == 1:
+        f["active"] = bool(int(f.get("active") or 0))
+        f["permissions"] = int(f.get("permissions") or 0)
+        if f["active"] == 0 and user.permissions == 1 and admin_exists() == 1:
             log.critical("Nearly deactivated last admin!")
             return "cannot deactivate last admin", 409
-        if user.permissions == 1 and admin_exists() == 1 and int(f.get("permissions")) == 0:
+        if user.permissions == 1 and admin_exists() == 1 and f["permissions"] < 1:
             log.critical("Nearly locked all users out of control panel!")
             return "cannot change last admin to normal user", 409
-        permissions = int(f.get("permissions"))
-        user.edit(
-                name=f.get("name"),
-                permissions=permissions,
-                callsign=f.get("callsign").lower(),
-                active=active
-                )
-        if f.get("password"):
-            user.set_new_password(f["password"])
-        return redirect("/control", code=301)
+        old = user.to_dict()
+        diff = {
+                k: f[k]
+                for k in editable_fields
+                if k in f and f[k] != old[k]
+                }
+        if not diff:
+            return "No changes were submitted", 301
+        try: user.edit(**diff)
+        except Exception as e:
+            log.error(e)
+            return e, 500
+        return "Changes saved", 200
 
 
 # --------- LOGIN ---------- #
@@ -383,7 +387,20 @@ def onebulletin(id: int):
     if request.method == "GET":
         return render_template("view_bulletin.html", bulletin=bulletin)
     elif request.method == "UPDATE":
-        return "Post accepted, but didn't do anything", 202
+        j = request.get_json()
+        og = bulletin.to_dict()
+        acceptable_fields = { "title", "origin", "body" }
+        diff = {
+                k: j[k]
+                for k in acceptable_fields
+                if k in j and j[k] != og[k]
+                }
+        if not diff: return "No changes were submitted", 304
+        try: bulletin.edit(**diff)
+        except Exception as e:
+            log.error(f"/bulletins/{id}: error in editing bulletin {bulletin.id}\n{e}")
+            return e, 500
+        return "Accepted and edited", 200
     elif request.method == "DELETE":
         bulletin.delete()
         return "Successfully deleted post", 200
