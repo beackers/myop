@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MyOp - viewing user</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=de
+vice-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mainStyle.css') }}">
+</head>
+<body>
+    <nav>
+        <div id="navdiv"></div>
+    </nav>
+
+    <label for="origin">Station of origin:</label>
+    <input type="text" id="origin" name="origin" value="{{ bulletin.origin }}"><br>
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title" value="{{ bulletin.title }}"><br>
+    <label for="body">Body:</label>
+    <textarea id="body" name="body">
+        {{ bulletin.body }}
+    </textarea>
+    <input type="hidden" name="csrf" value="{{ csrf }}" id="csrf">
+    <button type="button" id="updateBtn">Update bulletin</button><br>
+    <button type="button" id="deleteBtn">Delete bulletin</button>
+    <script src="{{ url_for('static', filename='dompurify.js') }}"></script>
+    <script src="{{ url_for('static', filename='nav.js') }}"></script>
+    <script>
+        addANav();
+        async function deleteBulletin() {
+            const response = await fetch(window.location.pathname, {
+                method: "DELETE",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    csrf: "{{ csrf }}"
+		}
+        	)});
+            msg = await response.text();
+            if (response.ok) {
+                window.location.href = "/control";
+            } else {
+                msg = await response.text();
+                alert(`An error occured while trying to delete the bulletin:\n${response.status}\n${msg}`);
+            }
+        }
+        async function updateBulletin() {
+            const origin = document.getElementById("origin");
+            const title = document.getElementById("title");
+            const body = document.getElementById("body");
+            const csrf = "{{ csrf }}";
+            const response = await fetch(window.location.pathname, {
+                method: "UPDATE",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    csrf: csrf,
+                    title: title.value,
+                    body: body.value,
+                    origin: origin.value
+                })
+            });
+            if (response.ok) {
+                window.location.href = "/control";
+            } else {
+                msg = await response.text();
+                alert(`An error occured that prevented the bulletin from being updated.\n${response.status}\n${msg}`);
+            }
+        }
+        const updateBtn = document.getElementById("updateBtn");
+        const deleteBtn = document.getElementById("deleteBtn");
+        updateBtn.onclick = updateBulletin;
+        deleteBtn.onclick = deleteBulletin;
+    </script>
+</body>
+</html>

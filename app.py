@@ -376,17 +376,17 @@ def allbulletins():
             })
 
 @app.route("/bulletins/<int:id>", methods=["GET", "UPDATE", "DELETE"])
-@logged_in
+@logged_in()
 @needs_csrf
 def onebulletin(id: int):
     bulletin = bullfunc.Bulletin(id)
     if request.method == "GET":
         return render_template("view_bulletin.html", bulletin=bulletin)
-    elif request.method == "POST":
-        return jsonify({"status": 209})
+    elif request.method == "UPDATE":
+        return "Post accepted, but didn't do anything", 202
     elif request.method == "DELETE":
         bulletin.delete()
-        return jsonify({"status": 200})
+        return "Successfully deleted post", 200
 
 
 
