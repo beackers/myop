@@ -5,3 +5,4 @@ static/config.json
 /packages/*
 erasedata.py
 /*.db
+/dist/*

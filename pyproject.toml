@@ -1,0 +1,40 @@
+[project]
+name = "myop"
+version = "1.0.0"
+authors = [
+    { name="beackers" },
+    ]
+description = "a flask web server built for emergencies"
+dependencies = [
+    "flask",
+    "humanize",
+]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    ]
+license = "CC0-1.0"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://github.com/beackers/myop"
+Issues = "https://github.com/beackers/myop/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "app.py",
+    "userfunc.py",
+    "bullfunc.py",
+    "templates",
+    "static",
+    "myop.db",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE",
+    ]
+
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
