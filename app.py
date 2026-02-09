@@ -402,7 +402,10 @@ def allbulletins():
 @logged_in()
 @needs_csrf
 def onebulletin(id: int):
-    bulletin = bullfunc.Bulletin(id)
+    try:
+        bulletin = bullfunc.Bulletin(id)
+    except ReferenceError:
+        abort(404, "Bulletin not found.")
     if request.method == "GET":
         return render_template("view_bulletin.html", bulletin=bulletin)
     elif request.method == "UPDATE":
