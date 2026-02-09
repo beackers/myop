@@ -243,7 +243,7 @@ def add_user():
         app.config["BOOTSTRAP_ADMIN"] = None
         session.clear()
         return redirect("/login", 301)
-    log.info(f"New user added! \nCallsign: {newuser["callsign"]}")
+    log.info(f"New user added! \nCallsign: {newuser['callsign']}")
     return redirect("/control", 301)
 
 
@@ -292,7 +292,7 @@ def view_or_edit_user(id: int):
                 return str(e), 500
         if f["pwdhash"] is not None:
             user.set_new_password(f["pwdhash"])
-            log.info(f"{coloredText(user.callsign, 36)}'s password was changed by {coloredText(session["user"], 31)}")
+            log.info(f"{coloredText(user.callsign, 36)}'s password was changed by {coloredText(session['user'], 31)}")
         return "Changes saved", 200
 
 
@@ -402,7 +402,10 @@ def allbulletins():
 @logged_in()
 @needs_csrf
 def onebulletin(id: int):
-    bulletin = bullfunc.Bulletin(id)
+    try:
+        bulletin = bullfunc.Bulletin(id)
+    except ReferenceError:
+        abort(404, "Bulletin not found.")
     if request.method == "GET":
         return render_template("view_bulletin.html", bulletin=bulletin)
     elif request.method == "UPDATE":
@@ -439,7 +442,7 @@ def chat():
 @websocket.on("message")
 def newMsg(data):
     try:
-        print(f"New Message: {data.get("msg", " ")}\nFrom station: {data.get("username")}")
+        print(f"New Message: {data.get('msg', ' ')}\nFrom station: {data.get('username')}")
         dataToSend = {
             "timestamp": time.asctime(),
             "username": data.get("username", "unknown"),

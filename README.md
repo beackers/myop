@@ -73,5 +73,29 @@ Find the latest release in the Releases tab and download a package (I generally 
 3. Access the webpage and configure user accounts and settings (located in the control panel)
 3. All good to go!
 
+---
+
+## running with Docker
+If you prefer a containerized setup, you can use Docker to build and run MyOp.
+
+### build the image
+From the repository root:
+```
+docker build -t myop .
+```
+
+### run the container
+This starts the app and exposes it on port 5000:
+```
+docker run --rm -p 5000:5000 myop
+```
+
+Then open `http://localhost:5000/` in your browser.
+
+### persisting data
+The SQLite database is stored in `myop.db`. To persist data across container restarts, mount a volume:
+```
+docker run --rm -p 5000:5000 -v "$(pwd)/myop.db:/app/myop.db" myop
+```
 
 

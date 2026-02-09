@@ -1,5 +1,5 @@
 import sqlite3 as sql, time, functools
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 class Bulletin:
     def __init__(self, id: int):
@@ -13,6 +13,11 @@ class Bulletin:
             bulletin = cur.fetchone()
             if bulletin is None:
                 raise ReferenceError("Bulletin does not exist")
+            expires = bulletin["expires"]
+            if expires is not None and int(expires) <= int(time.time()):
+                cur.execute("DELETE FROM bulletins WHERE id = ?", (id,))
+                c.commit()
+                raise ReferenceError("Bulletin has expired")
         self.id = bulletin["id"]
         self.origin = bulletin["origin"]
         self.timestamp = bulletin["timestamp"]
@@ -122,11 +127,25 @@ class Bulletin:
         self.title = row["title"]
         self.body = row["body"]
         self.timestamp = int(row["timestamp"])
-        self.expires = int(row["expires"])
+        self.expires = int(row["expires"]) if row["expires"] is not None else None
         self.id = int(row["id"])
 
     @classmethod
+    def purge_expired(cls, now: Optional[int] = None):
+        if now is None:
+            now = int(time.time())
+        with sql.connect("myop.db") as c:
+            cur = c.cursor()
+            cur.execute(
+                "DELETE FROM bulletins WHERE expires IS NOT NULL AND expires <= ?;",
+                (now,),
+            )
+            c.commit()
+            return cur.rowcount
+
+    @classmethod
     def get_all_bulletins(cls):
+        cls.purge_expired()
         with sql.connect("myop.db") as c:
             c.row_factory = sql.Row
             cur = c.cursor()
@@ -136,6 +155,7 @@ class Bulletin:
 
     @classmethod
     def filter_user(cls, user: str):
+        cls.purge_expired()
         bulletins = []
         with sql.connect("myop.db") as c:
             c.row_factory = sql.Row
